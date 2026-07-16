@@ -8,12 +8,13 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --build",
+    "typecheck": "tsc -p tsconfig.json",
     "dev": "npm --workspace apps/client run dev",
     "build": "npm --workspace apps/client run build"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/user-event": "^14.6.1",
     "@types/three": "^0.185.0",
     "jsdom": "^26.1.0",

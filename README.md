@@ -13,10 +13,31 @@ Core ideas:
 
 ## Status
 
-Contracts phase. No code yet. The whole system is split into 13 isolated contracts in [contracts.md](contracts.md), each with its own interface, so every piece (three.js scene, UI, sim core, telemetry, store, wallet, backend) can be built and replaced independently.
+Playable 1 vs AI prototype. The system is split into 13 isolated contracts in [contracts.md](contracts.md); built so far:
 
-## Stack targets
+- C-01 registry (`packages/registry`): 7 seed drones from public spec sheets, plus validation that rejects physically impossible uploads (10..500 W/kg specific power band).
+- C-03 sim core (`packages/sim-core`): deterministic 20 Hz headless tick. Wind above a drone's spec limit makes it drift uncontrolled, batteries drain at the endurance-derived wattage and a dead battery is a crash, kamikazes detonate on proximity, bombers lob ballistic munitions, miners haul lithium and oil, refineries crack oil into plastic, fog of war plus satellite sweeps, centcomm kill wins.
+- C-07 agents (`packages/agents`): standing policies (patrol, mine, hunt, kamikaze trigger, return at low battery) that keep working outside control range, and a deterministic overlord AI opponent.
+- C-04 scene (`packages/scene`): three.js r185 WebGPU renderer (WebGL2 fallback), RTS camera, click select, right-click orders, fog overlay.
+- C-05 UI (`packages/ui`): resource bar, factory build menu, satellite sweep toggle, selection panel, battle log, victory banner. DOM only, talks over the bus.
+- App shell (`apps/client`): Vite app wiring it all together.
 
-- Client: three.js r185+ (WebGPU renderer, WebGL fallback), static files served from a CDN.
-- Telemetry and match transport: plain WebSocket for now, isolated behind its own contract.
-- Backend: serverless functions plus a small database for accounts, store, wallet, leaderboard.
+Not built yet: C-02 asset pipeline, C-06 telemetry (1v1 network play), C-08..C-12 backend services, C-13 AI dialog and TTS.
+
+## Run it
+
+```
+npm install
+npm test          # 56 tests: determinism, physics sanity, economy, combat, UI
+npm run dev       # then open the printed URL, you play vs the overlord AI
+npm run build     # static bundle, CDN-ready
+```
+
+Controls: left-click select (shift adds), right-click move / attack / mine, WASD or arrows pan, wheel zoom, satellite sweep via the toggle then click the map. URL params: `?seed=123&difficulty=easy|normal|hard`.
+
+## Stack
+
+- Client: three.js r185 (WebGPU renderer, WebGL2 fallback), TypeScript, Vite, static files servable from a CDN.
+- Tests: Vitest, Testing Library (jsdom) for UI panels.
+- Telemetry and match transport: plain WebSocket next, isolated behind its own contract.
+- Backend: serverless functions plus a small database for accounts, store, wallet, leaderboard (not started).

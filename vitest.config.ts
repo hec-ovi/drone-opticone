@@ -7,14 +7,15 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['packages/{shared,registry,sim-core,agents}/test/**/*.test.ts'],
+          include: ['packages/{shared,registry,sim-core,agents,scene}/test/**/*.test.ts'],
         },
       },
       {
         test: {
           name: 'dom',
           environment: 'jsdom',
-          include: ['packages/{ui,scene}/test/**/*.test.ts', 'apps/client/test/**/*.test.ts'],
+          setupFiles: ['./vitest.setup.dom.ts'],
+          include: ['packages/ui/test/**/*.test.ts', 'apps/client/test/**/*.test.ts'],
         },
       },
     ],
