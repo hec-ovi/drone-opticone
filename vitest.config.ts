@@ -7,7 +7,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['packages/{shared,registry,sim-core,agents,scene}/test/**/*.test.ts'],
+          include: ['packages/{shared,registry,sim-core,agents,scene,telemetry}/test/**/*.test.ts'],
         },
       },
       {

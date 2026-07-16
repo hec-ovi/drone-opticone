@@ -16,13 +16,14 @@ Core ideas:
 Playable 1 vs AI prototype. The system is split into 13 isolated contracts in [contracts.md](contracts.md); built so far:
 
 - C-01 registry (`packages/registry`): 7 seed drones from public spec sheets, plus validation that rejects physically impossible uploads (10..500 W/kg specific power band).
-- C-03 sim core (`packages/sim-core`): deterministic 20 Hz headless tick. Wind above a drone's spec limit makes it drift uncontrolled, batteries drain at the endurance-derived wattage and a dead battery is a crash, kamikazes detonate on proximity, bombers lob ballistic munitions, miners haul lithium and oil, refineries crack oil into plastic, fog of war plus satellite sweeps, centcomm kill wins.
+- C-03 sim core (`packages/sim-core`): deterministic 20 Hz headless tick. Wind above a drone's spec limit makes it drift uncontrolled, batteries drain at the endurance-derived wattage and a dead battery is a crash, kamikazes detonate on proximity, bombers lob ballistic munitions, miners haul lithium and oil, refineries crack oil into plastic, fog of war plus satellite sweeps, centcomm kill wins. Terrain elevation is authoritative: drones hold altitude above ground level at their climb rate, wind-blown drones fly into hillsides, munitions impact on the relief.
 - C-07 agents (`packages/agents`): standing policies (patrol, mine, hunt, kamikaze trigger, return at low battery) that keep working outside control range, and a deterministic overlord AI opponent.
 - C-04 scene (`packages/scene`): three.js r185 WebGPU renderer (WebGL2 fallback), RTS camera (edge pan, middle-drag orbit, zoom-scaled speed), procedural terrain with a generated texture, modeled structures and resource nodes, fog overlay.
 - C-05 UI (`packages/ui`): resource bar, factory build menu, satellite sweep toggle, selection panel, battle log, victory banner. DOM only, talks over the bus.
+- C-06 telemetry (`packages/telemetry`): reconnecting WebSocket channel (sequence numbers, rtt pings, batched metrics) plus a tiny room relay server that pairs two clients per match and never reads payloads. The transport behind the upcoming 1v1 mode.
 - App shell (`apps/client`): Vite app wiring it all together.
 
-Not built yet: C-02 asset pipeline, C-06 telemetry (1v1 network play), C-08..C-12 backend services, C-13 AI dialog and TTS.
+Not built yet: 1v1 wiring on top of C-06, C-02 asset pipeline, C-08..C-12 backend services, C-13 AI dialog and TTS.
 
 ## Run it
 
@@ -33,7 +34,7 @@ npm run dev       # then open the printed URL, you play vs the overlord AI
 npm run build     # static bundle, CDN-ready
 ```
 
-Controls: left-click select (shift adds), right-click move / attack / mine, pan with WASD, arrows or the mouse at the screen edge, middle-drag to rotate and tilt, wheel zoom, satellite sweep via the toggle then click the map. URL params: `?seed=123&difficulty=easy|normal|hard`.
+Controls: left-click select (shift adds), right-click move / attack / mine, pan with WASD, arrows, the mouse at the screen edge, or hold left+right buttons and drag, middle-drag to rotate and tilt, wheel zoom, satellite sweep via the toggle then click the map. URL params: `?seed=123&difficulty=easy|normal|hard`.
 
 ## Stack
 
