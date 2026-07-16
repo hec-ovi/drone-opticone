@@ -1,0 +1,18 @@
+# Private docs, never commit
+gitignoreddocs/
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.cache/
+
+# Env and local config
+.env
+.env.*
+*.local
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
