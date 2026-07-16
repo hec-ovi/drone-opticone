@@ -207,10 +207,14 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     drawFog(view.fog)
   }
 
-  // Input: keys, wheel zoom, edge pan, middle-mouse orbit.
+  // Input: keys, wheel zoom, edge pan, middle-mouse orbit, L+R grab pan.
   const keys = new Set<string>()
   const pointer = { x: -1, y: -1, inside: false }
   let rotating = false
+  let dragPanning = false
+  let suppressClick = false
+  let downPos = { x: 0, y: 0 }
+  let movedPx = 0
   const clock = new THREE.Clock()
 
   function updateCamera(): void {
@@ -239,6 +243,45 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       canvas.setPointerCapture(ev.pointerId)
       return
     }
+    if ((ev.buttons & 3) === 3) {
+      // Both mouse buttons held: grab-pan. No selection or order fires.
+      dragPanning = true
+      suppressClick = true
+      canvas.setPointerCapture(ev.pointerId)
+      return
+    }
+    downPos = { x: ev.clientX, y: ev.clientY }
+    movedPx = 0
+  }
+
+  function onPointerMove(ev: PointerEvent): void {
+    const rect = canvas.getBoundingClientRect()
+    pointer.x = ev.clientX - rect.left
+    pointer.y = ev.clientY - rect.top
+    pointer.inside = true
+    movedPx = Math.max(movedPx, Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y))
+    if (dragPanning && (ev.buttons & 3) === 3) {
+      rig.dragPan(ev.movementX, ev.movementY)
+      return
+    }
+    if (rotating) rig.rotate(ev.movementX, ev.movementY)
+  }
+
+  function onPointerUp(ev: PointerEvent): void {
+    if (ev.button === 1) {
+      rotating = false
+      canvas.releasePointerCapture(ev.pointerId)
+      return
+    }
+    if ((ev.buttons & 3) !== 3) dragPanning = false
+    if (ev.buttons === 0) {
+      const wasSuppressed = suppressClick
+      suppressClick = false
+      if (wasSuppressed) return
+    } else if (suppressClick) {
+      return
+    }
+    if (movedPx > 6) return // drag, not a click
     if (!lastView) return
     const point = pickPoint(ev.clientX, ev.clientY)
     if (!point) return
@@ -266,21 +309,6 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       } else {
         commandCb({ type: 'move', playerId: lastView.playerId, droneIds, to: point })
       }
-    }
-  }
-
-  function onPointerMove(ev: PointerEvent): void {
-    const rect = canvas.getBoundingClientRect()
-    pointer.x = ev.clientX - rect.left
-    pointer.y = ev.clientY - rect.top
-    pointer.inside = true
-    if (rotating) rig.rotate(ev.movementX, ev.movementY)
-  }
-
-  function onPointerUp(ev: PointerEvent): void {
-    if (ev.button === 1) {
-      rotating = false
-      canvas.releasePointerCapture(ev.pointerId)
     }
   }
 

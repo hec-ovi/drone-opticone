@@ -48,6 +48,34 @@ describe('C-04 camera rig', () => {
     expect(r.focus.x).toBe(0)
   })
 
+  it('grab-pan follows the cursor: drag right moves focus left, scaled by zoom', () => {
+    const r = rig()
+    r.dragPan(100, 0)
+    expect(r.focus.x).toBeLessThan(2000)
+    expect(r.focus.z).toBeCloseTo(2000, 5)
+
+    // Drag down pulls the map toward the viewer: focus retreats forward.
+    const r2 = rig()
+    r2.dragPan(0, 100)
+    expect(r2.focus.z).toBeLessThan(2000)
+
+    // Zoomed out, the same pixel drag covers more ground.
+    const near = rig()
+    near.dist = 500
+    near.dragPan(100, 0)
+    const far = rig()
+    far.dist = 5000
+    far.dragPan(100, 0)
+    expect(2000 - far.focus.x).toBeGreaterThan((2000 - near.focus.x) * 5)
+
+    // And it respects the yaw, like every other pan.
+    const turned = rig()
+    turned.yaw = Math.PI / 2
+    turned.dragPan(100, 0)
+    expect(Math.abs(turned.focus.x - 2000)).toBeLessThan(1e-6)
+    expect(turned.focus.z).not.toBeCloseTo(2000, 3)
+  })
+
   it('middle-drag rotates yaw and clamps pitch', () => {
     const r = rig()
     const yaw0 = r.yaw

@@ -72,6 +72,20 @@ export class CameraRig {
     if (dx !== 0 || dy !== 0) this.pan(dx, dy, dt)
   }
 
+  /**
+   * Grab-pan (hold left+right): the ground point under the cursor follows
+   * the cursor. Pixel deltas are converted with a zoom-scaled factor.
+   */
+  dragPan(dxPx: number, dyPx: number): void {
+    const k = this.dist * 0.0016
+    const f = this.forward()
+    const r = this.right()
+    this.focus.x -= (r.x * dxPx - f.x * dyPx) * k
+    this.focus.z -= (r.z * dxPx - f.z * dyPx) * k
+    this.focus.x = Math.max(0, Math.min(this.mapSize, this.focus.x))
+    this.focus.z = Math.max(0, Math.min(this.mapSize, this.focus.z))
+  }
+
   /** Middle-mouse orbit: horizontal drag spins the map, vertical tilts it. */
   rotate(dxPx: number, dyPx: number): void {
     this.yaw = (this.yaw - dxPx * CAM.rotatePerPx) % (Math.PI * 2)
