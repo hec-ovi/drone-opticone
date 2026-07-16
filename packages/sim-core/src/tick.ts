@@ -5,6 +5,7 @@ import {
   FOG_UNSEEN,
   FOG_VISIBLE,
   rngRange,
+  terrainHeight,
   type DroneSpec,
   type DroneState,
   type IssuedCommand,
@@ -13,7 +14,7 @@ import {
   type StructureState,
   type Vec3,
 } from '@opticone/shared'
-import { dist2D, dist3D, stepToward } from './geometry'
+import { dist2D, dist3D, stepToward, stepToward2D } from './geometry'
 import { makeDrone } from './match'
 import { TUNING, buildCost, buildTimeS, cruisePowerW } from './tuning'
 
@@ -26,6 +27,11 @@ function spec(s: MatchState, d: DroneState): DroneSpec {
   return s.catalog[d.specId]!
 }
 
+function ground(s: MatchState, x: number, z: number): number {
+  return terrainHeight(s.mapSizeM, s.terrainSeed, x, z)
+}
+
+/** Target altitude above ground level (AGL) per class. */
 function targetAltitude(sp: DroneSpec): number {
   return TUNING.hoverAltM[sp.class] ?? TUNING.cruiseAltM[sp.class] ?? 60
 }
@@ -236,7 +242,7 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
         }
         break
       case 'moving':
-        if (d.dest && stepToward(d.pos, d.dest, sp.cruiseMps * DT, TUNING.arriveDistM)) {
+        if (d.dest && stepToward2D(d.pos, d.dest, sp.cruiseMps * DT, TUNING.arriveDistM)) {
           d.mode = 'idle'
           d.dest = null
         }
@@ -244,7 +250,7 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
       case 'patrol':
         if (d.patrol) {
           const goal = d.patrol.leg === 0 ? d.patrol.a : d.patrol.b
-          if (stepToward(d.pos, goal, sp.cruiseMps * DT, TUNING.arriveDistM)) {
+          if (stepToward2D(d.pos, goal, sp.cruiseMps * DT, TUNING.arriveDistM)) {
             d.patrol.leg = d.patrol.leg === 0 ? 1 : 0
           }
         }
@@ -267,7 +273,7 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
         } else {
           // Winged bomber: close to release range, drop, then hold the circle.
           if (dist2D(d.pos, target.pos) > TUNING.munitionReleaseRangeM) {
-            stepToward(d.pos, { x: target.pos.x, y: targetAltitude(sp), z: target.pos.z }, sp.cruiseMps * DT, 1)
+            stepToward2D(d.pos, target.pos, sp.cruiseMps * DT, 1)
             speedFactor = 1
           } else if (s.tick >= d.cooldownUntilTick && d.cargoKg >= TUNING.munitionMassKg) {
             releaseMunition(s, d, target.pos)
@@ -293,7 +299,7 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
           break
         }
         if (dist2D(d.pos, node.pos) > TUNING.miningRangeM) {
-          stepToward(d.pos, { x: node.pos.x, y: targetAltitude(sp), z: node.pos.z }, sp.cruiseMps * DT, TUNING.miningRangeM / 2)
+          stepToward2D(d.pos, node.pos, sp.cruiseMps * DT, TUNING.miningRangeM / 2)
         } else {
           const take = Math.min(TUNING.miningRateKgPerS * DT, node.remainingKg, sp.payloadKg - d.cargoKg)
           node.remainingKg -= take
@@ -312,7 +318,7 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
           break
         }
         if (dist2D(d.pos, home.pos) > TUNING.depositRangeM) {
-          stepToward(d.pos, { x: home.pos.x, y: targetAltitude(sp), z: home.pos.z }, sp.cruiseMps * DT, TUNING.depositRangeM / 2)
+          stepToward2D(d.pos, home.pos, sp.cruiseMps * DT, TUNING.depositRangeM / 2)
         } else if (d.cargoKg > 0 && d.cargoKind) {
           const player = s.players.find((p) => p.id === d.playerId)!
           const delta =
@@ -332,8 +338,24 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
 
   if (d.hp <= 0) return
 
-  // Ceiling and floor.
+  // Terrain following: hold the class AGL above the relief, limited by the
+  // climb rate and the service ceiling. Kamikaze dives own their altitude;
+  // wind-blown drones have no altitude authority at all.
+  const groundHere = ground(s, d.pos.x, d.pos.z)
+  const diving = d.mode === 'attacking' && isKamikaze(sp)
+  if (!windBlown && !diving) {
+    const targetY = Math.min(groundHere + targetAltitude(sp), sp.ceilingM)
+    const climb = TUNING.climbRateMps * DT
+    d.pos.y += Math.max(-climb, Math.min(climb, targetY - d.pos.y))
+  }
   d.pos.y = Math.min(d.pos.y, sp.ceilingM)
+
+  // Flying into a hillside is fatal.
+  if (d.pos.y < groundHere - 0.5) {
+    d.hp = 0
+    events.push({ type: 'destroyed', entityId: d.id, playerId: d.playerId, cause: 'terrain' })
+    return
+  }
 
   // Energy drain, self-consistent with the published endurance.
   if (sp.batteryWh !== null) {
@@ -363,11 +385,12 @@ function updateProjectiles(s: MatchState, events: SimEvent[]): void {
     p.pos.x += p.vel.x * DT
     p.pos.y += p.vel.y * DT
     p.pos.z += p.vel.z * DT
-    if (p.pos.y > 0) {
+    const impactY = ground(s, p.pos.x, p.pos.z)
+    if (p.pos.y > impactY) {
       alive.push(p)
       continue
     }
-    const at = { x: p.pos.x, y: 0, z: p.pos.z }
+    const at = { x: p.pos.x, y: impactY, z: p.pos.z }
     for (const st of s.structures) {
       if (dist2D(st.pos, at) <= TUNING.munitionSplashM + TUNING.structureRadiusM) st.hp -= TUNING.munitionDamage
     }
@@ -472,8 +495,10 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
     const sp = s.catalog[job.specId]
     if (!factory || !sp) continue
     const id = `e${s.nextEntityId++}`
-    const alt = TUNING.hoverAltM[sp.class] ?? TUNING.cruiseAltM[sp.class] ?? 60
-    s.drones.push(makeDrone(sp, job.playerId, { x: factory.pos.x + 30, y: alt, z: factory.pos.z + 30 }, id))
+    const alt = targetAltitude(sp)
+    const x = factory.pos.x + 30
+    const z = factory.pos.z + 30
+    s.drones.push(makeDrone(sp, job.playerId, { x, y: ground(s, x, z) + alt, z }, id))
     events.push({ type: 'spawned', entityId: id, playerId: job.playerId, specId: sp.id })
   }
   s.builds = pending

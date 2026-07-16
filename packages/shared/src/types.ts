@@ -126,6 +126,8 @@ export interface MatchState {
   rngState: number
   mapId: string
   mapSizeM: number
+  /** seed of the authoritative terrain heightfield (derived from mapId) */
+  terrainSeed: number
   wind: { dirRad: number; speedMps: number }
   /** true in physics tests with a fixed wind; the per-tick wind walk is skipped */
   windLocked: boolean
@@ -169,7 +171,7 @@ export type IssuedCommand = Command & { origin?: CommandOrigin }
 
 export type SimEvent =
   | { type: 'spawned'; entityId: string; playerId: string; specId: string }
-  | { type: 'destroyed'; entityId: string; playerId: string; cause: 'battery' | 'collision' | 'munition' | 'selfDestruct' | 'wind' }
+  | { type: 'destroyed'; entityId: string; playerId: string; cause: 'battery' | 'collision' | 'munition' | 'selfDestruct' | 'wind' | 'terrain' }
   | { type: 'collided'; aId: string; bId: string }
   | { type: 'batteryLow'; droneId: string; playerId: string; pct: number }
   | { type: 'resourceDelta'; playerId: string; delta: Partial<PlayerEconomy> }
@@ -181,6 +183,7 @@ export interface PlayerView {
   tick: number
   playerId: string
   mapSizeM: number
+  terrainSeed: number
   wind: { dirRad: number; speedMps: number }
   economy: PlayerEconomy
   satellite: SatelliteState

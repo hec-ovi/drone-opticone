@@ -34,6 +34,7 @@ export function snapshot(s: MatchState, playerId: string): PlayerView {
     tick: s.tick,
     playerId,
     mapSizeM: s.mapSizeM,
+    terrainSeed: s.terrainSeed,
     wind: s.wind,
     economy: player.economy,
     satellite: player.satellite,

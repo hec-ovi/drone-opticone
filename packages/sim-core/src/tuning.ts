@@ -34,6 +34,7 @@ export const TUNING = {
   cruiseAltM: { 'fixed-wing': 1000, 'loitering-munition': 600 } as Partial<Record<DroneClass, number>>,
   orbitRadiusM: 150,
   arriveDistM: 8,
+  climbRateMps: 8,
   miningRangeM: 40,
   depositRangeM: 60,
   miningRateKgPerS: 1,

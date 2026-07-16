@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { terrainHeight } from '@opticone/scene'
+import { terrainHeight } from '@opticone/shared'
 
 const MAP = 4000
 const SEED = 1337

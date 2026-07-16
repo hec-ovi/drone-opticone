@@ -1,7 +1,9 @@
 import {
   FOG_GRID,
   FOG_UNSEEN,
+  mapTerrainSeed,
   rngRange,
+  terrainHeight,
   type DroneSpec,
   type DroneState,
   type MatchState,
@@ -54,6 +56,8 @@ export function createMatch(
 ): MatchState {
   let rngState = seed >>> 0
   const mapSizeM = TUNING.mapSizeM
+  const terrainSeed = mapTerrainSeed(mapId)
+  const ground = (x: number, z: number) => terrainHeight(mapSizeM, terrainSeed, x, z)
 
   const players: PlayerState[] = playerIds.map((id) => ({
     id,
@@ -66,13 +70,15 @@ export function createMatch(
     { x: mapSizeM - 500, y: 0, z: mapSizeM - 500 },
   ]
 
+  const onGround = (x: number, z: number): Vec3 => ({ x, y: ground(x, z), z })
+
   const structures = playerIds.flatMap((pid, i) => {
     const b = basePos[i]!
     return [
-      structure(`s-${pid}-centcomm`, 'centcomm', pid, b),
-      structure(`s-${pid}-refinery`, 'refinery', pid, { x: b.x + 90, y: 0, z: b.z }),
-      structure(`s-${pid}-factory`, 'factory', pid, { x: b.x, y: 0, z: b.z + 90 }),
-      structure(`s-${pid}-uplink`, 'satellite-uplink', pid, { x: b.x - 90, y: 0, z: b.z }),
+      structure(`s-${pid}-centcomm`, 'centcomm', pid, onGround(b.x, b.z)),
+      structure(`s-${pid}-refinery`, 'refinery', pid, onGround(b.x + 90, b.z)),
+      structure(`s-${pid}-factory`, 'factory', pid, onGround(b.x, b.z + 90)),
+      structure(`s-${pid}-uplink`, 'satellite-uplink', pid, onGround(b.x - 90, b.z)),
     ]
   })
 
@@ -84,15 +90,15 @@ export function createMatch(
   }
   for (const b of basePos) {
     const sign = b.x < mapSizeM / 2 ? 1 : -1
-    addNode('lithium', { x: b.x + sign * 400, y: 0, z: b.z + sign * 150 }, 800)
-    addNode('oil', { x: b.x + sign * 150, y: 0, z: b.z + sign * 400 }, 1200)
+    addNode('lithium', onGround(b.x + sign * 400, b.z + sign * 150), 800)
+    addNode('oil', onGround(b.x + sign * 150, b.z + sign * 400), 1200)
   }
   for (let i = 0; i < 8; i++) {
     const rx = rngRange(rngState, mapSizeM * 0.25, mapSizeM * 0.75)
     rngState = rx.state
     const rz = rngRange(rngState, mapSizeM * 0.25, mapSizeM * 0.75)
     rngState = rz.state
-    addNode(i % 2 === 0 ? 'lithium' : 'oil', { x: rx.value, y: 0, z: rz.value }, 1500)
+    addNode(i % 2 === 0 ? 'lithium' : 'oil', onGround(rx.value, rz.value), 1500)
   }
 
   const drones: DroneState[] = []
@@ -103,7 +109,9 @@ export function createMatch(
       const spec = catalog[specId]
       if (!spec) continue
       const alt = TUNING.hoverAltM[spec.class] ?? 60
-      drones.push(makeDrone(spec, pid, { x: b.x + 30 + entitySeq * 10, y: alt, z: b.z - 40 }, `e${entitySeq++}`))
+      const x = b.x + 30 + entitySeq * 10
+      const z = b.z - 40
+      drones.push(makeDrone(spec, pid, { x, y: ground(x, z) + alt, z }, `e${entitySeq++}`))
     }
   })
 
@@ -117,6 +125,7 @@ export function createMatch(
     rngState,
     mapId,
     mapSizeM,
+    terrainSeed,
     wind: opts.fixedWind ? { ...opts.fixedWind } : { dirRad: windDir.value, speedMps: windSpeed.value },
     windLocked: Boolean(opts.fixedWind),
     players,

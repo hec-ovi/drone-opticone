@@ -16,7 +16,6 @@ import { makeTerrain, type Terrain } from './terrain'
 import { makeNodeObject, makeStructureObject } from './props'
 
 const PICK_TOLERANCE_M = 60
-const TERRAIN_SEED = 1337
 
 /**
  * C-04 mountScene. Renders a PlayerView and turns raw input into commands.
@@ -122,7 +121,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       mapSize = view.mapSizeM
       rig.setMapSize(mapSize)
       if (terrain) scene.remove(terrain.mesh)
-      terrain = makeTerrain(mapSize, TERRAIN_SEED)
+      terrain = makeTerrain(mapSize, view.terrainSeed)
       scene.add(terrain.mesh)
       fogPlane.geometry.dispose()
       fogPlane.geometry = new THREE.PlaneGeometry(mapSize, mapSize)
