@@ -57,6 +57,8 @@ export interface DroneState {
   policy: PolicySpec | null
   /** true when wind exceeds the spec limit or the drone is outside control range */
   uncontrolled: boolean
+  /** next tick this drone may release a munition */
+  cooldownUntilTick: number
 }
 
 export interface StructureState {
@@ -125,6 +127,8 @@ export interface MatchState {
   mapId: string
   mapSizeM: number
   wind: { dirRad: number; speedMps: number }
+  /** true in physics tests with a fixed wind; the per-tick wind walk is skipped */
+  windLocked: boolean
   players: PlayerState[]
   drones: DroneState[]
   structures: StructureState[]
@@ -145,6 +149,12 @@ export type PolicySpec =
   | { kind: 'kamikazeOn'; radiusM: number }
   | { kind: 'returnAtBatteryPct'; pct: number }
 
+/**
+ * origin 'policy' marks onboard autonomy (C-07 standing policies), which keeps
+ * working outside control range; 'player' commands need an active control link.
+ */
+export type CommandOrigin = 'player' | 'policy'
+
 export type Command =
   | { type: 'move'; playerId: string; droneIds: string[]; to: Vec3 }
   | { type: 'patrol'; playerId: string; droneIds: string[]; a: Vec3; b: Vec3 }
@@ -154,6 +164,8 @@ export type Command =
   | { type: 'assignPolicy'; playerId: string; droneIds: string[]; policy: PolicySpec | null }
   | { type: 'satelliteSweep'; playerId: string; center: Vec2 }
   | { type: 'selfDestruct'; playerId: string; droneIds: string[] }
+
+export type IssuedCommand = Command & { origin?: CommandOrigin }
 
 export type SimEvent =
   | { type: 'spawned'; entityId: string; playerId: string; specId: string }
