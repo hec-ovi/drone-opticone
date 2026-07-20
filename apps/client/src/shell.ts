@@ -61,7 +61,10 @@ export class GameShell {
           this.sound?.play('build')
         }
       }),
-      this.bus.on('intent:sweepMode', (on) => this.scene.setInteractionMode(on ? 'sweep' : 'normal')),
+      this.bus.on('intent:sweepMode', (on) => {
+        this.scene.setInteractionMode(on ? 'sweep' : 'normal')
+        this.bus.emit('sweepModeChanged', on)
+      }),
       this.bus.on('intent:restart', () => this.startMatch((this.state.tick + 1) * 7919, this.difficulty)),
       this.bus.on('intent:startMatch', ({ seed: s, difficulty: d }) => this.startMatch(s, d)),
       this.bus.on('intent:focus', ({ x, z }) => this.scene.focusAt(x, z)),

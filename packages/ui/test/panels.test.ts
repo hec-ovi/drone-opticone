@@ -16,6 +16,11 @@ function humanView(mutate?: (v: PlayerView) => void): PlayerView {
   return view
 }
 
+function selectFactory(bus: Bus<ClientTopics>, view: PlayerView): void {
+  const factory = view.structures.find((st) => st.kind === 'factory' && st.playerId === 'human')!
+  bus.emit('selection', { drones: [], structures: [factory], nodes: [] })
+}
+
 describe('C-05 minimap', () => {
   let bus: Bus<ClientTopics>
 
@@ -43,14 +48,12 @@ describe('C-05 minimap', () => {
     expect(focuses[0]!.x).toBeLessThanOrEqual(4000)
   })
 
-  it('the sweep toggle lives on the tactical map and arms sweep mode', async () => {
-    const user = userEvent.setup()
-    const modes: boolean[] = []
-    bus.on('intent:sweepMode', (on) => modes.push(on))
-    const btn = screen.getByRole('button', { name: 'Satellite sweep' })
-    await user.click(btn)
-    expect(btn).toHaveAttribute('aria-pressed', 'true')
-    expect(modes).toEqual([true])
+  it('the minimap has no standing sweep button; arming shows a status flash', () => {
+    expect(screen.queryByRole('button', { name: 'Satellite sweep' })).toBeNull()
+    bus.emit('sweepModeChanged', true)
+    expect(document.querySelector('.sweep-state')!.textContent).toContain('SWEEP ARMED')
+    bus.emit('sweepModeChanged', false)
+    expect(document.querySelector('.sweep-state')!.textContent).toBe('')
   })
 })
 
@@ -175,14 +178,13 @@ describe('C-05 build queue and menu flow', () => {
     mountUI(document.body, bus)
   })
 
-  it('queued builds show progress bars', () => {
-    bus.emit(
-      'view',
-      humanView((v) => {
-        v.tick = 100
-        v.builds = [{ id: 'b1', playerId: 'human', structureId: 's', specId: 'fpv-strike', readyAtTick: 150 }]
-      }),
-    )
+  it('queued builds show progress bars while the factory is selected', () => {
+    const v0 = humanView((v) => {
+      v.tick = 100
+      v.builds = [{ id: 'b1', playerId: 'human', structureId: 's', specId: 'fpv-strike', readyAtTick: 150 }]
+    })
+    bus.emit('view', v0)
+    selectFactory(bus, v0)
     const fill = document.querySelector('.queue-fill') as HTMLElement
     expect(fill).not.toBeNull()
     // fpv builds in 5s = 100 ticks; 50 remaining => 50%.
@@ -266,6 +268,17 @@ describe('C-05 structure and node selection', () => {
     expect(document.querySelector('.stat-value')!.textContent).toContain('750 kg left')
   })
 
+  it('the factory panel appears only while the factory is selected', () => {
+    const view = humanView()
+    bus.emit('view', view)
+    const panel = document.querySelector('.build-menu') as HTMLElement
+    expect(panel.style.display).toBe('none')
+    selectFactory(bus, view)
+    expect(panel.style.display).toBe('')
+    bus.emit('selection', { drones: [], structures: [], nodes: [] })
+    expect(panel.style.display).toBe('none')
+  })
+
   it('drone orders stay disabled when only a building is selected', () => {
     const view = humanView()
     bus.emit('view', view)
@@ -289,7 +302,9 @@ describe('C-05 drone roles', () => {
     document.body.innerHTML = ''
     const bus = new Bus<ClientTopics>()
     mountUI(document.body, bus)
-    bus.emit('view', humanView())
+    const v0 = humanView()
+    bus.emit('view', v0)
+    selectFactory(bus, v0)
     const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
     expect(fpv.textContent).toContain('STRIKE')
     expect(fpv.title).toContain('Cheap kamikaze')
@@ -336,7 +351,9 @@ describe('C-05 enemy intel and thumbnails', () => {
   })
 
   it('rendered thumbnails replace fallback icons on tiles and the plate', () => {
-    bus.emit('view', humanView())
+    const v0 = humanView()
+    bus.emit('view', v0)
+    selectFactory(bus, v0)
     const px =
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
     bus.emit('thumbnails', {

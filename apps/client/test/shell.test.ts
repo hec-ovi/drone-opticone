@@ -87,7 +87,8 @@ describe('app shell integration (real sim, fake scene)', () => {
 
     scene.userIssues({ type: 'satelliteSweep', playerId: HUMAN, center: { x: 3500, z: 3500 } })
     expect(scene.mode).toBe('normal')
-    expect(changes).toEqual([false])
+    // Arming echoes true so the map status lights up; the sweep click clears it.
+    expect(changes).toEqual([true, false])
 
     shell.step()
     expect(shell.state.players.find((p) => p.id === HUMAN)!.satellite.energy).toBeLessThan(100)

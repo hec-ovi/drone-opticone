@@ -32,7 +32,10 @@ describe('C-05 UI panels', () => {
 
   it('build menu enables affordable drones, disables the rest, and emits build intents', async () => {
     const user = userEvent.setup()
-    bus.emit('view', humanView())
+    const v0 = humanView()
+    bus.emit('view', v0)
+    const factory = v0.structures.find((st) => st.kind === 'factory')!
+    bus.emit('selection', { drones: [], structures: [factory], nodes: [] })
 
     const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
     const tb2 = screen.getByRole('button', { name: /Build Baykar Bayraktar TB2/ })
@@ -47,26 +50,29 @@ describe('C-05 UI panels', () => {
   })
 
   it('build menu reacts to economy changes', () => {
-    bus.emit('view', humanView((v) => (v.economy.credits = 0)))
+    const broke = humanView((v) => (v.economy.credits = 0))
+    bus.emit('view', broke)
+    const factory = broke.structures.find((st) => st.kind === 'factory')!
+    bus.emit('selection', { drones: [], structures: [factory], nodes: [] })
     expect(screen.getByRole('button', { name: /Build FPV strike quad/ })).toBeDisabled()
     bus.emit('view', humanView())
     expect(screen.getByRole('button', { name: /Build FPV strike quad/ })).toBeEnabled()
   })
 
-  it('satellite sweep button toggles and follows shell resets', async () => {
+  it('the sweep is an uplink order: selecting the uplink arms it', async () => {
     const user = userEvent.setup()
+    const view = humanView()
+    bus.emit('view', view)
     const modes: boolean[] = []
     bus.on('intent:sweepMode', (on) => modes.push(on))
 
-    const btn = screen.getByRole('button', { name: 'Satellite sweep' })
-    expect(btn).toHaveAttribute('aria-pressed', 'false')
-    await user.click(btn)
-    expect(btn).toHaveAttribute('aria-pressed', 'true')
+    const slot = screen.getByRole('button', { name: 'Arm satellite sweep' })
+    expect(slot).toBeDisabled()
+    const uplink = view.structures.find((st) => st.kind === 'satellite-uplink')!
+    bus.emit('selection', { drones: [], structures: [uplink], nodes: [] })
+    expect(slot).toBeEnabled()
+    await user.click(slot)
     expect(modes).toEqual([true])
-
-    // The shell announces the mode was consumed after a sweep click.
-    bus.emit('sweepModeChanged', false)
-    expect(btn).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('selection panel lists selected drones with battery and link state', () => {

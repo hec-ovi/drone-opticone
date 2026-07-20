@@ -18,7 +18,7 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
   const portraitSlot = el('div', 'plate-portrait', plate)
   const infoCol = el('div', 'plate-info', plate)
   const empty = el('p', 'selection-empty', plate)
-  empty.textContent = 'Nothing selected'
+  empty.textContent = 'Nothing selected. Select the factory to build drones.'
 
   let catalog: PlayerView['catalog'] = {}
   let playerId = ''

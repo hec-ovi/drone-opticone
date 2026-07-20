@@ -254,22 +254,12 @@ button:disabled {
 
 .minimap-head h2 { margin: 0; }
 
-.sweep-btn {
-  background: rgba(154, 123, 255, 0.12);
-  border: 1px solid #4f4380;
-  color: #b9a5ff;
-  font-size: 10px;
-  font-weight: 600;
+.sweep-state {
+  font-size: 9px;
+  font-weight: 700;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 3px 7px;
-}
-
-.sweep-btn[aria-pressed='true'] {
-  background: rgba(154, 123, 255, 0.4);
-  border-color: #9a7bff;
-  color: #fff;
-  box-shadow: 0 0 12px rgba(154, 123, 255, 0.5);
+  color: #b9a5ff;
+  animation: p-blink 1.1s steps(2, start) infinite;
 }
 
 .minimap-canvas {
@@ -656,7 +646,7 @@ button:disabled {
 /* ------------------------------------------------------------ build menu */
 
 .build-menu {
-  flex: 1;
+  flex: 1.9;
   min-width: 330px;
 }
 
@@ -810,8 +800,8 @@ button:disabled {
 /* -------------------------------------------------------------- eventlog */
 
 .event-log {
-  flex: none;
-  width: 252px;
+  flex: 1;
+  min-width: 230px;
   font-size: 12px;
 }
 

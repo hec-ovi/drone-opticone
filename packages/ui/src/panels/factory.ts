@@ -1,4 +1,4 @@
-import type { Bus, ClientTopics, DroneSpec, PlayerView, ThumbnailSet } from '@opticone/shared'
+import type { Bus, ClientTopics, DroneSpec, PlayerView, Selection, ThumbnailSet } from '@opticone/shared'
 import { droneClassIcon, iconEl } from '../icons'
 import { button, el, fmt, img } from '../dom'
 import { displayBuildCost, displayBuildTimeS } from '../display'
@@ -8,9 +8,12 @@ import { droneRole } from '../roles'
  * Factory panel: square build tiles showing the rendered model of each
  * airframe (class silhouette until thumbnails arrive), role-colored frames,
  * a hover info strip with full specs and costs, and the build queue.
+ * Contextual like any RTS production building: it only appears while the
+ * player's own factory is selected.
  */
 export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const panel = el('section', 'panel build-menu', root)
+  panel.style.display = 'none'
   const heading = el('h2', '', panel)
   heading.textContent = 'Factory'
   const grid = el('div', 'build-grid', panel)
@@ -99,8 +102,17 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
     }
   })
 
+  let playerId = ''
+  const offPid = bus.on('view', (view: PlayerView) => (playerId = view.playerId))
+  const offSel = bus.on('selection', (sel: Selection) => {
+    const factorySelected = sel.structures.some((s) => s.kind === 'factory' && s.playerId === playerId)
+    panel.style.display = factorySelected ? '' : 'none'
+  })
+
   return () => {
     offView()
     offThumbs()
+    offPid()
+    offSel()
   }
 }

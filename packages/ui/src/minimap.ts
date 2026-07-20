@@ -60,12 +60,11 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
   const title = document.createElement('h2')
   title.textContent = 'Tactical map'
   head.appendChild(title)
-  const sweepBtn = document.createElement('button')
-  sweepBtn.type = 'button'
-  sweepBtn.className = 'sweep-btn'
-  sweepBtn.textContent = 'Satellite sweep'
-  sweepBtn.setAttribute('aria-pressed', 'false')
-  head.appendChild(sweepBtn)
+  // Sweep status only; arming it is an order on the satellite uplink.
+  const sweepState = document.createElement('span')
+  sweepState.className = 'sweep-state'
+  sweepState.textContent = ''
+  head.appendChild(sweepState)
   panel.appendChild(head)
 
   const canvas = document.createElement('canvas')
@@ -75,13 +74,6 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
   canvas.setAttribute('role', 'img')
   canvas.setAttribute('aria-label', 'minimap')
   panel.appendChild(canvas)
-
-  let sweepArmed = false
-  sweepBtn.addEventListener('click', () => {
-    sweepArmed = !sweepArmed
-    sweepBtn.setAttribute('aria-pressed', String(sweepArmed))
-    bus.emit('intent:sweepMode', sweepArmed)
-  })
 
   let base: HTMLCanvasElement | null = null
   let baseSeed = -1
@@ -181,8 +173,7 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
     requestDraw()
   })
   const offSweep = bus.on('sweepModeChanged', (on: boolean) => {
-    sweepArmed = on
-    sweepBtn.setAttribute('aria-pressed', String(on))
+    sweepState.textContent = on ? 'SWEEP ARMED - CLICK THE FIELD' : ''
   })
   return () => {
     offView()
