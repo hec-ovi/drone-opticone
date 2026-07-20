@@ -1,28 +1,50 @@
 import type { Bus, ClientTopics, PlayerView } from '@opticone/shared'
 import { ICONS, iconEl } from '../icons'
 import { button, clockText, el, fmt } from '../dom'
+import { attachTooltip } from '../tooltip'
 
 /**
  * Top strip of the console: resource readouts, satellite energy bar, wind
- * compass, mission clock, sound and help buttons.
+ * compass, mission clock, sound and help buttons. Every chip carries a
+ * cursor tooltip saying what the resource is and how to get more of it,
+ * with a LOW hint when the bank runs short.
  */
 export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const bar = el('div', 'console-top', root)
 
+  let lastView: PlayerView | null = null
+
   const res = el('div', 'resource-bar', bar)
   res.setAttribute('role', 'status')
   res.setAttribute('aria-label', 'resources')
-  const chip = (icon: string, cls: string) => {
+  const chip = (icon: string, cls: string, tip: () => string) => {
     const c = el('span', `res ${cls}`, res)
     const badge = el('span', 'res-badge', c)
     badge.appendChild(iconEl(icon))
+    attachTooltip(c, tip)
     return el('span', 'res-value', c)
   }
-  const credits = chip(ICONS.credits, 'res-credits')
-  const lithium = chip(ICONS.lithium, 'res-lithium')
-  const oil = chip(ICONS.oil, 'res-oil')
-  const plastic = chip(ICONS.plastic, 'res-plastic')
-  const power = chip(ICONS.power, 'res-power')
+  const credits = chip(ICONS.credits, 'res-credits', () => {
+    const low = (lastView?.economy.credits ?? Infinity) < 500
+    return `CREDITS · Pays for drones, structures and missile reloads.${low ? ' LOW: credits do not regenerate, spend them where it counts.' : ''}`
+  })
+  const lithium = chip(ICONS.lithium, 'res-lithium', () => {
+    const low = (lastView?.economy.lithiumKg ?? Infinity) < 20
+    return `LITHIUM · Ore miners harvest it from crystal nodes. Pays for drone batteries and power plants.${low ? ' LOW: select a miner and right-click a crystal node.' : ''}`
+  })
+  const oil = chip(ICONS.oil, 'res-oil', () => {
+    const low = (lastView?.economy.oilKg ?? Infinity) < 20
+    return `OIL · Ore miners harvest it from oil seeps; the refinery cracks it into plastic.${low ? ' LOW: select a miner and right-click an oil seep.' : ''}`
+  })
+  const plastic = chip(ICONS.plastic, 'res-plastic', () => {
+    const low = (lastView?.economy.plasticKg ?? Infinity) < 20
+    return `PLASTIC · Cracked from oil at the powered refinery. Builds airframes, structures and missile reloads.${low ? ' LOW: mine oil and keep the refinery powered.' : ''}`
+  })
+  const power = chip(ICONS.power, 'res-power', () => {
+    const p = lastView?.power
+    const out = p && p.used > p.cap
+    return `POWER · Grid load vs capacity. The CENTCOM and power plants feed it; factory, refinery, uplink, relays and batteries draw it.${out ? ' LOW POWER: construct a power plant from the CENTCOM.' : ''}`
+  })
   const satWrap = el('span', 'res res-sat', res)
   const satBadge = el('span', 'res-badge', satWrap)
   satBadge.appendChild(iconEl(ICONS.satellite))
@@ -71,11 +93,20 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
   close.addEventListener('click', toggle)
 
   const off = bus.on('view', (view: PlayerView) => {
+    lastView = view
+    const brownout = view.power.used > view.power.cap
+    // Live pipeline: while the powered refinery cracks oil, show the flow
+    // on the chips themselves so oil -> plastic is visible, not implied.
+    const cracking =
+      !brownout &&
+      view.economy.oilKg > 0.01 &&
+      view.structures.some(
+        (st) => st.kind === 'refinery' && st.playerId === view.playerId && st.readyAtTick === undefined,
+      )
     credits.textContent = `Credits ${fmt(view.economy.credits)}`
     lithium.textContent = `Lithium ${fmt(view.economy.lithiumKg)} kg`
-    oil.textContent = `Oil ${fmt(view.economy.oilKg)} kg`
-    plastic.textContent = `Plastic ${fmt(view.economy.plasticKg)} kg`
-    const brownout = view.power.used > view.power.cap
+    oil.textContent = `Oil ${fmt(view.economy.oilKg)} kg${cracking ? ' -1/s' : ''}`
+    plastic.textContent = `Plastic ${fmt(view.economy.plasticKg)} kg${cracking ? ' +0.5/s' : ''}`
     power.textContent = brownout
       ? `LOW POWER ${view.power.used}/${view.power.cap}`
       : `Power ${view.power.used}/${view.power.cap}`

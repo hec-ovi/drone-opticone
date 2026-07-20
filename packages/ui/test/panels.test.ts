@@ -418,6 +418,29 @@ describe('C-05 live plate: activity color, status and target', () => {
     expect(document.querySelector('.plate-target')!.textContent).toContain('Returning to base')
   })
 
+  it('the refinery plate explains the oil-to-plastic pipeline state', () => {
+    const view = humanView((v) => (v.economy.oilKg = 50))
+    bus.emit('view', view)
+    const refinery = view.structures.find((s) => s.kind === 'refinery' && s.playerId === 'human')!
+    bus.emit('selection', { drones: [], structures: [refinery], nodes: [] })
+    expect(document.querySelector('.plate-target')!.textContent).toContain('Cracking oil into plastic')
+
+    bus.emit('view', humanView((v) => (v.economy.oilKg = 0)))
+    expect(document.querySelector('.plate-target')!.textContent).toContain('no oil')
+  })
+
+  it('a selected node names its reserve and what it funds', () => {
+    const view = humanView()
+    bus.emit('view', view)
+    const node = view.nodes.find((n) => n.kind === 'oil')!
+    node.remainingKg = 1000
+    bus.emit('selection', { drones: [], structures: [], nodes: [node] })
+    const target = document.querySelector('.plate-target')!
+    expect(target.textContent).toContain('1.0k kg oil')
+    expect(target.textContent).toContain('500 kg plastic')
+    expect(target.querySelector('.icon')).not.toBeNull()
+  })
+
   it('an air-defense battery reports its missile rack', () => {
     const view = humanView((v) => {
       v.structures.push({

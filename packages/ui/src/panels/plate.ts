@@ -69,6 +69,11 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
       sel.nodes.map((n) => [n.id, Math.round(n.remainingKg / 20)]),
     ])
 
+  // Status rows (refinery pipeline) also depend on the grid and oil store.
+  const viewFlags = () =>
+    lastView ? `${lastView.power.used > lastView.power.cap}|${lastView.economy.oilKg > 0.01}` : ''
+  let renderedFlags = ''
+
   const offView = bus.on('view', (view: PlayerView) => {
     catalog = view.catalog
     playerId = view.playerId
@@ -87,7 +92,7 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
         .map((n) => view.nodes.find((x) => x.id === n.id))
         .filter((x): x is Selection['nodes'][number] => x !== undefined),
     }
-    if (liveSig(fresh) !== liveSig(lastSel)) render(fresh)
+    if (liveSig(fresh) !== liveSig(lastSel) || viewFlags() !== renderedFlags) render(fresh)
   })
   const offThumbs = bus.on('thumbnails', (t: ThumbnailSet) => {
     thumbs = t
@@ -171,6 +176,7 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
 
   function render(sel: Selection): void {
     lastSel = sel
+    renderedFlags = viewFlags()
     const primary = sel.drones[0]
     const structure = sel.structures[0]
     const node = sel.nodes[0]
@@ -282,6 +288,23 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
           (structure.ammo / AIR_DEFENSE_AMMO_MAX) * 100,
         )
       }
+      // The refinery plate teaches the oil-to-plastic pipeline state.
+      if (!hostile && structure.kind === 'refinery' && lastView) {
+        const row = el('p', 'plate-target', infoCol)
+        row.appendChild(iconEl(ICONS.oil, 'icon icon-s'))
+        const brownout = lastView.power.used > lastView.power.cap
+        row.appendChild(
+          document.createTextNode(
+            structure.readyAtTick !== undefined
+              ? 'Under construction.'
+              : brownout
+                ? 'NO POWER: cracking halted.'
+                : lastView.economy.oilKg > 0.01
+                  ? 'Cracking oil into plastic: 1 kg/s oil, 0.5 kg/s plastic.'
+                  : 'Idle: no oil stored. Send miners to an oil seep.',
+          ),
+        )
+      }
       return
     }
 
@@ -298,6 +321,16 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
         node.kind === 'lithium' ? ICONS.lithium : ICONS.oil,
         `${fmt(node.remainingKg)} kg left`,
         (node.remainingKg / 1500) * 100,
+      )
+      // What this reserve funds, so nodes can be prioritized at a glance.
+      const yieldRow = el('p', 'plate-target', infoCol)
+      yieldRow.appendChild(iconEl(node.kind === 'lithium' ? ICONS.lithium : ICONS.oil, 'icon icon-s'))
+      yieldRow.appendChild(
+        document.createTextNode(
+          node.kind === 'lithium'
+            ? `${fmt(node.remainingKg)} kg lithium: drone batteries and power plants.`
+            : `${fmt(node.remainingKg)} kg oil: cracks into ${fmt(node.remainingKg * 0.5)} kg plastic.`,
+        ),
       )
     }
   }

@@ -30,6 +30,26 @@ describe('C-05 UI panels', () => {
     expect(bar.textContent).toContain('Sat 100')
   })
 
+  it('resource chips carry how-to tooltips and the oil pipeline shows live rates', async () => {
+    const user = userEvent.setup()
+    bus.emit('view', humanView((v) => (v.economy.oilKg = 40)))
+    const bar = screen.getByRole('status', { name: 'resources' })
+    expect(bar.textContent).toContain('Oil 40 kg -1/s')
+    expect(bar.textContent).toContain('+0.5/s')
+
+    await user.hover(document.querySelector('.res-lithium') as HTMLElement)
+    const tip = () => document.querySelector('.cursor-tip') as HTMLElement
+    expect(tip().textContent).toContain('crystal node')
+
+    await user.hover(document.querySelector('.res-plastic') as HTMLElement)
+    expect(tip().textContent).toContain('Cracked from oil')
+
+    // Browned out: the power tooltip says exactly what to do.
+    bus.emit('view', humanView((v) => (v.power = { used: 95, cap: 40 })))
+    await user.hover(document.querySelector('.res-power') as HTMLElement)
+    expect(tip().textContent).toContain('construct a power plant')
+  })
+
   it('build menu locks unaffordable tiles WITH the reason on the tile, and emits build intents', async () => {
     const user = userEvent.setup()
     const v0 = humanView()
