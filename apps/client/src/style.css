@@ -725,15 +725,68 @@ button:disabled {
 .build-tile.role-border-miner { border-bottom-color: #5ee7c8; }
 .build-tile.role-border-cargo { border-bottom-color: #8f9aa4; }
 
-.build-info-strip {
+/* Hover info card: name, one-line role, need/have costs, dependency chips. */
+.build-card {
   margin-top: 7px;
-  min-height: 15px;
-  font-size: 11px;
-  font-family: var(--font-mono);
+  min-height: 62px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  background: rgba(14, 22, 32, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bc-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  min-height: 14px;
+}
+
+.bc-desc {
+  font-size: 10.5px;
   color: var(--text-dim);
+  min-height: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.bc-costs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.bc-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+}
+
+.bc-cost.ok { color: var(--good); }
+.bc-cost.short { color: var(--danger); }
+
+.bc-deps {
+  display: flex;
+  gap: 5px;
+  min-height: 0;
+}
+
+.bc-dep {
+  width: 19px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: rgba(20, 32, 44, 0.8);
+  color: var(--accent);
 }
 
 /* Queue feedback lives on the tiles: count badge + progress line. */

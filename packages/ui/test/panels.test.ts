@@ -283,10 +283,11 @@ describe('C-05 construction panel and power', () => {
     await user.click(screen.getByRole('button', { name: 'Construct Power plant' }))
     expect(intents).toEqual(['power-plant'])
 
-    // Placement armed: the tile lights up and the strip explains the flow.
+    // Placement armed: the tile lights up and the card explains the flow.
     bus.emit('placeModeChanged', 'power-plant')
     expect(panel.querySelector('.build-tile.placing')).not.toBeNull()
-    expect(panel.textContent).toContain('Placing Power plant')
+    expect(panel.querySelector('.bc-name')!.textContent).toBe('Power plant')
+    expect(panel.textContent).toContain('Placing')
     bus.emit('placeModeChanged', null)
     expect(panel.querySelector('.build-tile.placing')).toBeNull()
 
@@ -307,6 +308,31 @@ describe('C-05 construction panel and power', () => {
     expect(tile().getAttribute('aria-disabled')).toBe('false')
     // The missile defense battery is on the construction card too.
     expect(screen.getByRole('button', { name: 'Construct Missile defense' })).toBeDefined()
+  })
+
+  it('hovering a construction tile shows the info card: name, role, need/have costs, deps', async () => {
+    const user = userEvent.setup()
+    const view = humanView()
+    bus.emit('view', view)
+    const cc = view.structures.find((st) => st.kind === 'centcomm' && st.playerId === 'human')!
+    bus.emit('selection', { drones: [], structures: [cc], nodes: [] })
+
+    const panel = document.querySelector('.construct-menu') as HTMLElement
+    await user.hover(screen.getByRole('button', { name: 'Construct Missile defense' }))
+    expect(panel.querySelector('.bc-name')!.textContent).toBe('Missile defense')
+    expect(panel.querySelector('.bc-desc')!.textContent).toContain('shoots down')
+    const chips = [...panel.querySelectorAll('.bc-cost')]
+    // lithium 15/50 ok, plastic 40/100 ok, credits 800/5000 ok, power 15/25 ok.
+    expect(chips[0]!.className).toContain('ok')
+    expect(chips[0]!.textContent).toContain('15 / 50')
+    expect(chips[3]!.textContent).toContain('15 / 25')
+    expect(panel.querySelector('.bc-dep')).not.toBeNull()
+
+    // Short bank: the plastic chip flips red.
+    bus.emit('view', humanView((v) => (v.economy.plasticKg = 5)))
+    const plastic = [...panel.querySelectorAll('.bc-cost')][1]!
+    expect(plastic.className).toContain('short')
+    expect(plastic.textContent).toContain('40 / 5')
   })
 
   it('the resource strip shows grid power and flags brownouts', () => {

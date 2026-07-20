@@ -535,7 +535,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   // Move/up are window-level so drags that end over the console still finish
   // cleanly; pressStartedOnCanvas gates game actions to canvas presses.
   const keys = new Set<string>()
-  const pointer = { x: -1, y: -1, inside: false }
+  const pointer = { x: -1, y: -1, inside: false, clientX: -1, clientY: -1, buttons: 0, inWindow: false }
   let rotating = false
   let dragPanning = false
   let suppressClick = false
@@ -548,6 +548,10 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     rig.panFromKeys(keys, dt)
     if (pointer.inside && !rotating) {
       rig.panFromEdge(pointer.x, pointer.y, canvas.clientWidth || canvas.width, canvas.clientHeight || canvas.height, dt)
+    } else if (pointer.inWindow && !rotating && pointer.buttons === 0) {
+      // Over the HUD (console at the bottom): the physical screen edge still
+      // scrolls the map, as long as no UI drag is in progress.
+      rig.panFromScreenEdge(pointer.clientX, pointer.clientY, window.innerWidth, window.innerHeight, dt)
     }
     const pose = rig.pose()
     camera.position.set(pose.position.x, pose.position.y, pose.position.z)
@@ -600,6 +604,10 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     const rect = canvas.getBoundingClientRect()
     pointer.x = ev.clientX - rect.left
     pointer.y = ev.clientY - rect.top
+    pointer.clientX = ev.clientX
+    pointer.clientY = ev.clientY
+    pointer.buttons = ev.buttons
+    pointer.inWindow = true
     // Edge pan only while the cursor actually hovers the field, not the HUD.
     pointer.inside = ev.target === canvas
     // Free hover (no buttons): target feedback ring or placement ghost.
@@ -755,6 +763,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
 
   function onPointerLeave(): void {
     pointer.inside = false
+    pointer.inWindow = false
   }
 
   function onWheel(ev: WheelEvent): void {

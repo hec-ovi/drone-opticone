@@ -9,8 +9,10 @@ import {
   type StructureKind,
   type ThumbnailSet,
 } from '@opticone/shared'
-import { el, fmt, img } from '../dom'
-import { STRUCTURE_NAME } from '../display'
+import { el, img } from '../dom'
+import { ICONS } from '../icons'
+import { buildInfoCard, type CardData } from '../build-card'
+import { STRUCTURE_DESC, STRUCTURE_NAME } from '../display'
 import { structurePortraitSvg } from '../portraits'
 
 const BUILDABLE = Object.keys(STRUCTURE_BUILD) as StructureKind[]
@@ -25,12 +27,11 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
   const panel = el('section', 'panel build-menu construct-menu', root)
   panel.style.display = 'none'
   const grid = el('div', 'build-grid', panel)
-  const info = el('p', 'build-info-strip', panel)
-  const IDLE_HINT = 'Pick a structure, then click the field.'
-  info.textContent = IDLE_HINT
+  const card = buildInfoCard(panel)
 
   let lastView: PlayerView | null = null
   let placing: StructureKind | null = null
+  let hoveredKind: StructureKind | null = null
 
   const shortfall = (kind: StructureKind): string | null => {
     if (!lastView) return null
@@ -41,11 +42,24 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     return null
   }
 
-  const describe = (kind: StructureKind): string => {
+  const cardFor = (kind: StructureKind, view: PlayerView): CardData => {
     const build = STRUCTURE_BUILD[kind]!
-    const power = POWER_CAP[kind] ? `+${POWER_CAP[kind]} power` : `-${POWER_USE[kind] ?? 0} power`
-    const missing = shortfall(kind)
-    return `${STRUCTURE_NAME[kind]} · ${power} · ${fmt(build.lithiumKg)} li + ${fmt(build.plasticKg)} pl + ${fmt(build.credits)} cr · ${build.timeS}s${missing ? ` · ${missing}` : ''}`
+    const draw = POWER_USE[kind]
+    const costs: CardData['costs'] = [
+      { icon: ICONS.lithium, need: build.lithiumKg, have: view.economy.lithiumKg },
+      { icon: ICONS.plastic, need: build.plasticKg, have: view.economy.plasticKg },
+      { icon: ICONS.credits, need: build.credits, have: view.economy.credits },
+    ]
+    // Consumers show their power draw against the grid headroom.
+    if (draw) costs.push({ icon: ICONS.power, need: draw, have: Math.max(0, view.power.cap - view.power.used) })
+    return {
+      name: STRUCTURE_NAME[kind],
+      desc: STRUCTURE_DESC[kind],
+      costs,
+      timeS: build.timeS,
+      bonus: POWER_CAP[kind] ? `+${POWER_CAP[kind]} power` : undefined,
+      deps: [{ icon: ICONS.base, title: 'Placed from the CENTCOM' }],
+    }
   }
 
   const tiles = new Map<string, { btn: HTMLButtonElement; image: HTMLImageElement; tag: HTMLElement; roleTag: string }>()
@@ -64,12 +78,14 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     tag.textContent = roleTag
     btn.title = STRUCTURE_NAME[kind]
     const show = () => {
-      if (!placing) info.textContent = describe(kind)
+      hoveredKind = kind
+      if (!placing && lastView) card.show(cardFor(kind, lastView))
     }
     btn.addEventListener('mouseenter', show)
     btn.addEventListener('focus', show)
     btn.addEventListener('mouseleave', () => {
-      if (!placing) info.textContent = IDLE_HINT
+      if (hoveredKind === kind) hoveredKind = null
+      if (!placing) card.clear()
     })
     btn.addEventListener('click', () => {
       if (btn.classList.contains('locked')) return
@@ -101,14 +117,22 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
       tile.tag.textContent = missing ?? tile.roleTag
       tile.tag.classList.toggle('warn', missing !== null)
     }
+    if (!placing && hoveredKind) card.show(cardFor(hoveredKind, view))
   })
 
   const offPlace = bus.on('placeModeChanged', (kind: StructureKind | null) => {
     placing = kind
     for (const [k, tile] of tiles) tile.btn.classList.toggle('placing', k === kind)
-    info.textContent = kind
-      ? `Placing ${STRUCTURE_NAME[kind]}: click the field. Right-click or Esc cancels.`
-      : IDLE_HINT
+    if (kind) {
+      card.show({
+        name: STRUCTURE_NAME[kind],
+        desc: 'Placing: click the field. Right-click or Esc cancels.',
+        costs: [],
+        deps: [],
+      })
+    } else {
+      card.clear()
+    }
   })
 
   const offSel = bus.on('selection', (sel: Selection) => {

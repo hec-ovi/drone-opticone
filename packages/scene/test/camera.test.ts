@@ -32,6 +32,25 @@ describe('C-04 camera rig', () => {
     expect(still.focus).toEqual({ x: 2000, z: 2000 })
   })
 
+  it('screen-edge pan works past the canvas, e.g. over the console at the bottom', () => {
+    // Cursor on the console, pinned to the physical screen bottom: pans down.
+    const r = rig()
+    r.panFromScreenEdge(640, 897, 1280, 900, 0.1)
+    expect(r.focus.z).toBeGreaterThan(2000)
+    expect(r.focus.x).toBeCloseTo(2000, 5)
+
+    // Hovering the console body (not the edge strip) must NOT drift the map.
+    const still = rig()
+    still.panFromScreenEdge(640, 780, 1280, 900, 0.1)
+    expect(still.focus).toEqual({ x: 2000, z: 2000 })
+
+    // Corners combine both axes.
+    const corner = rig()
+    corner.panFromScreenEdge(2, 899, 1280, 900, 0.1)
+    expect(corner.focus.x).toBeLessThan(2000)
+    expect(corner.focus.z).toBeGreaterThan(2000)
+  })
+
   it('pan speed scales with zoom distance', () => {
     const near = rig()
     near.dist = 500

@@ -1,6 +1,7 @@
 import type { Bus, ClientTopics, DroneSpec, PlayerView, Selection, ThumbnailSet } from '@opticone/shared'
-import { droneClassIcon, iconEl } from '../icons'
-import { button, el, fmt, img } from '../dom'
+import { ICONS, droneClassIcon, iconEl } from '../icons'
+import { button, el, img } from '../dom'
+import { buildInfoCard, type CardData } from '../build-card'
 import { displayBuildCost, displayBuildTimeS } from '../display'
 import { droneRole } from '../roles'
 
@@ -25,7 +26,7 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
   const panel = el('section', 'panel build-menu', root)
   panel.style.display = 'none'
   const grid = el('div', 'build-grid', panel)
-  const info = el('p', 'build-info-strip', panel)
+  const card = buildInfoCard(panel)
   const tiles = new Map<
     string,
     {
@@ -39,11 +40,24 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
   >()
   let thumbs: ThumbnailSet | null = null
   let lastView: PlayerView | null = null
+  let hoveredSpecId: string | null = null
 
-  const describe = (spec: DroneSpec, view: PlayerView): string => {
+  const cardFor = (spec: DroneSpec, view: PlayerView): CardData => {
     const cost = displayBuildCost(spec)
-    const missing = shortfall(view.economy, cost)
-    return `${spec.name} · ${fmt(cost.lithiumKg)} li + ${fmt(cost.plasticKg)} pl + ${fmt(cost.credits)} cr · ${displayBuildTimeS(spec)}s${missing ? ` · ${missing}` : ''}`
+    return {
+      name: spec.name,
+      desc: droneRole(spec).text,
+      costs: [
+        { icon: ICONS.lithium, need: cost.lithiumKg, have: view.economy.lithiumKg },
+        { icon: ICONS.plastic, need: cost.plasticKg, have: view.economy.plasticKg },
+        { icon: ICONS.credits, need: cost.credits, have: view.economy.credits },
+      ],
+      timeS: displayBuildTimeS(spec),
+      deps: [
+        { icon: ICONS.factory, title: 'Built at the Factory' },
+        { icon: ICONS.power, title: 'The factory line needs grid power' },
+      ],
+    }
   }
 
   const offThumbs = bus.on('thumbnails', (t: ThumbnailSet) => {
@@ -79,11 +93,15 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         progress.style.width = '0%'
         btn.title = `${spec.name} - ${role.text}`
         const show = () => {
-          if (lastView) info.textContent = describe(spec, lastView)
+          hoveredSpecId = spec.id
+          if (lastView) card.show(cardFor(spec, lastView))
         }
         btn.addEventListener('mouseenter', show)
         btn.addEventListener('focus', show)
-        btn.addEventListener('mouseleave', () => (info.textContent = ''))
+        btn.addEventListener('mouseleave', () => {
+          if (hoveredSpecId === spec.id) hoveredSpecId = null
+          card.clear()
+        })
         btn.addEventListener('click', () => {
           if (btn.classList.contains('locked')) return
           bus.emit('intent:build', { specId: spec.id })
@@ -121,6 +139,10 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
       }
       tile.progress.style.width = `${pct.toFixed(0)}%`
     }
+
+    // Keep the hover card's have/need numbers live while the bank moves.
+    const hovered = hoveredSpecId ? view.catalog[hoveredSpecId] : undefined
+    if (hovered) card.show(cardFor(hovered, view))
   })
 
   let playerId = ''

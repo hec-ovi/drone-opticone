@@ -43,6 +43,8 @@ export const ICONS = {
   help: svg('<circle cx="12" cy="12" r="8.4"/><path d="M9.6 9.2A2.5 2.5 0 0 1 12 7.4c1.4 0 2.5 1 2.5 2.2 0 1.6-2.5 1.9-2.5 3.6"/><circle cx="12" cy="16.6" r="0.7" fill="currentColor"/>'),
   flag: svg('<path d="M6 21V4"/><path d="M6 5h11.4l-2.2 3.4 2.2 3.4H6"/>'),
   power: svg('<path d="M13.2 2.8 5.6 13.4h4.6L10.8 21.2l7.6-10.6h-4.6Z"/>'),
+  factory: svg('<path d="M4 19.4V9.8l4.4-3v3l4.4-3v3l4.4-3v12.6Z"/><path d="M7 15.4h2.4M12 15.4h2.4"/>'),
+  base: svg('<path d="M4.6 17.6h14.8M6.4 17.6v-4.4h11.2v4.4"/><path d="M8 13.2a4 4 0 0 1 8 0"/><path d="M12 6v3.2M12 6l2.4-1.4"/>'),
 }
 
 /** Side-profile silhouettes per drone class for build cards and chips. */

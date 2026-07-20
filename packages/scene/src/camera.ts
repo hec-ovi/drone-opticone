@@ -14,6 +14,8 @@ export const CAM = {
   maxPitch: 1.35,
   panSpeed: 2.3, // map-units per second per unit of camDist... scaled below
   edgePx: 32,
+  /** hard screen-edge strip that still pans over the HUD (window coords) */
+  edgeHudPx: 12,
   rotatePerPx: 0.006,
   pitchPerPx: 0.004,
 }
@@ -69,6 +71,21 @@ export class CameraRig {
     else if (px >= width - CAM.edgePx && px <= width) dx = 1
     if (py >= 0 && py <= CAM.edgePx) dy = -1
     else if (py >= height - CAM.edgePx && py <= height) dy = 1
+    if (dx !== 0 || dy !== 0) this.pan(dx, dy, dt)
+  }
+
+  /**
+   * Window-edge pan for when the cursor sits over the HUD (e.g. the console
+   * across the bottom): only a thin strip at the physical screen edge pushes
+   * the map, so hovering UI controls never drifts the camera.
+   */
+  panFromScreenEdge(px: number, py: number, width: number, height: number, dt: number): void {
+    let dx = 0
+    let dy = 0
+    if (px <= CAM.edgeHudPx) dx = -1
+    else if (px >= width - CAM.edgeHudPx) dx = 1
+    if (py <= CAM.edgeHudPx) dy = -1
+    else if (py >= height - CAM.edgeHudPx) dy = 1
     if (dx !== 0 || dy !== 0) this.pan(dx, dy, dt)
   }
 

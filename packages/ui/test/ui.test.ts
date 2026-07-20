@@ -53,6 +53,27 @@ describe('C-05 UI panels', () => {
     expect(intents).toEqual([{ specId: 'fpv-strike' }])
   })
 
+  it('hovering a build tile fills the info card: name, role line, need/have, dep icons', async () => {
+    const user = userEvent.setup()
+    const v0 = humanView()
+    bus.emit('view', v0)
+    const factory = v0.structures.find((st) => st.kind === 'factory')!
+    bus.emit('selection', { drones: [], structures: [factory], nodes: [] })
+    const panel = document.querySelector('.build-menu:not(.construct-menu)') as HTMLElement
+
+    const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
+    await user.hover(fpv)
+    expect(panel.querySelector('.bc-name')!.textContent).toContain('FPV strike')
+    expect(panel.querySelector('.bc-desc')!.textContent!.length).toBeGreaterThan(5)
+    // Affordable from the start bank: every resource chip reads green.
+    expect(panel.querySelectorAll('.bc-cost.ok').length).toBe(3)
+    expect(panel.querySelectorAll('.bc-cost.short').length).toBe(0)
+    expect(panel.querySelectorAll('.bc-dep').length).toBe(2)
+
+    await user.unhover(fpv)
+    expect(panel.querySelector('.bc-name')!.textContent).toBe('')
+  })
+
   it('build menu reacts to economy changes', () => {
     const broke = humanView((v) => (v.economy.credits = 0))
     bus.emit('view', broke)
