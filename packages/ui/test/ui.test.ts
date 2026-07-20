@@ -70,8 +70,18 @@ describe('C-05 UI panels', () => {
     expect(panel.querySelectorAll('.bc-cost.short').length).toBe(0)
     expect(panel.querySelectorAll('.bc-dep').length).toBe(2)
 
+    // Sticky card: leaving the tile keeps the last unit's info in place.
     await user.unhover(fpv)
-    expect(panel.querySelector('.bc-name')!.textContent).toBe('')
+    expect(panel.querySelector('.bc-name')!.textContent).toContain('FPV strike')
+  })
+
+  it('the info card is filled from the start: first airframe before any hover', () => {
+    const v0 = humanView()
+    bus.emit('view', v0)
+    const factory = v0.structures.find((st) => st.kind === 'factory')!
+    bus.emit('selection', { drones: [], structures: [factory], nodes: [] })
+    const name = document.querySelector('.build-menu:not(.construct-menu) .bc-name')!
+    expect(name.textContent!.length).toBeGreaterThan(3)
   })
 
   it('build menu reacts to economy changes', () => {

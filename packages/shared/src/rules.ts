@@ -45,6 +45,9 @@ export interface PowerStatus {
 /** Missile rack size of the air-defense battery, shared with the UI. */
 export const AIR_DEFENSE_AMMO_MAX = 8
 
+/** Engagement radius of the air-defense battery, shared with the scene ring. */
+export const AIR_DEFENSE_RANGE_M = 500
+
 /** A structure under construction (readyAtTick in the future) does nothing yet. */
 export function structureActive(tick: number, st: { readyAtTick?: number }): boolean {
   return st.readyAtTick === undefined || tick >= st.readyAtTick

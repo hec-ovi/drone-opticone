@@ -31,7 +31,8 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
 
   let lastView: PlayerView | null = null
   let placing: StructureKind | null = null
-  let hoveredKind: StructureKind | null = null
+  // Sticky card: last hovered structure, first tile as the default.
+  let shownKind: StructureKind | null = null
 
   const shortfall = (kind: StructureKind): string | null => {
     if (!lastView) return null
@@ -77,15 +78,11 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     const tag = el('span', 'tile-tag role-support', btn)
     tag.textContent = roleTag
     const show = () => {
-      hoveredKind = kind
+      shownKind = kind
       if (!placing && lastView) card.show(cardFor(kind, lastView))
     }
     btn.addEventListener('mouseenter', show)
     btn.addEventListener('focus', show)
-    btn.addEventListener('mouseleave', () => {
-      if (hoveredKind === kind) hoveredKind = null
-      if (!placing) card.clear()
-    })
     btn.addEventListener('click', () => {
       if (btn.classList.contains('locked')) return
       bus.emit('intent:construct', { kind })
@@ -116,7 +113,11 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
       tile.tag.textContent = missing ?? tile.roleTag
       tile.tag.classList.toggle('warn', missing !== null)
     }
-    if (!placing && hoveredKind) card.show(cardFor(hoveredKind, view))
+    if (!placing) {
+      const kind = shownKind ?? BUILDABLE[0]!
+      shownKind = kind
+      card.show(cardFor(kind, view))
+    }
   })
 
   const offPlace = bus.on('placeModeChanged', (kind: StructureKind | null) => {
@@ -129,6 +130,8 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
         costs: [],
         deps: [],
       })
+    } else if (lastView) {
+      card.show(cardFor(shownKind ?? BUILDABLE[0]!, lastView))
     } else {
       card.clear()
     }

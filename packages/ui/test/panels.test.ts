@@ -148,10 +148,45 @@ describe('C-05 command card', () => {
     expect(stop).toBeDisabled()
   })
 
+  it('the card is per-unit: inapplicable actions hide their icons entirely', () => {
+    const view = humanView()
+    bus.emit('view', view)
+    const miner = makeDrone(getDrone('ore-miner')!, 'human', { x: 600, y: 30, z: 600 }, 'miner-x')
+    bus.emit('selection', { drones: [miner], structures: [], nodes: [] })
+    expect(screen.getByRole('button', { name: 'Mine nearest node' }).classList.contains('off')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Kamikaze guard' }).classList.contains('off')).toBe(true)
+
+    const fpv = makeDrone(getDrone('fpv-strike')!, 'human', { x: 700, y: 60, z: 700 }, 'fpv-x')
+    bus.emit('selection', { drones: [fpv], structures: [], nodes: [] })
+    expect(screen.getByRole('button', { name: 'Kamikaze guard' }).classList.contains('off')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Mine nearest node' }).classList.contains('off')).toBe(true)
+  })
+
+  it('Clear policy only appears once the selected drone actually has a policy', () => {
+    const v0 = humanView()
+    bus.emit('view', v0)
+    const scout = v0.ownDrones.find((d) => d.specId === 'mavic3')!
+    bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
+    const clear = () => screen.getByRole('button', { name: 'Clear policy' })
+    expect(clear().classList.contains('off')).toBe(true)
+
+    // The policy lands in the sim; the card follows on the next view.
+    bus.emit(
+      'view',
+      humanView((v) => {
+        v.ownDrones.find((d) => d.id === scout.id)!.policy = { kind: 'returnAtBatteryPct', pct: 20 }
+      }),
+    )
+    expect(clear().classList.contains('off')).toBe(false)
+    expect(clear()).toBeEnabled()
+  })
+
   it('policy buttons publish typed policy intents', async () => {
     const user = userEvent.setup()
     bus.emit('view', humanView())
     const fpv = makeDrone(getDrone('fpv-strike')!, 'human', { x: 700, y: 60, z: 700 }, 'fpv-x')
+    // Carries a standing order already, so Clear policy is on its card.
+    fpv.policy = { kind: 'kamikazeOn', radiusM: 600 }
     bus.emit('selection', { drones: [fpv], structures: [], nodes: [] })
     const policies: (PolicySpec | null)[] = []
     bus.on('intent:policy', (p) => policies.push(p))

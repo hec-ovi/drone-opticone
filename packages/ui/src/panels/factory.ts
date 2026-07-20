@@ -40,7 +40,9 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
   >()
   let thumbs: ThumbnailSet | null = null
   let lastView: PlayerView | null = null
-  let hoveredSpecId: string | null = null
+  // Sticky card: it always shows the last hovered airframe (first tile as
+  // the default) so the area under the tiles never blanks or jumps.
+  let shownSpecId: string | null = null
 
   const cardFor = (spec: DroneSpec, view: PlayerView): CardData => {
     const cost = displayBuildCost(spec)
@@ -92,15 +94,11 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         const progress = el('span', 'tile-progress', btn)
         progress.style.width = '0%'
         const show = () => {
-          hoveredSpecId = spec.id
+          shownSpecId = spec.id
           if (lastView) card.show(cardFor(spec, lastView))
         }
         btn.addEventListener('mouseenter', show)
         btn.addEventListener('focus', show)
-        btn.addEventListener('mouseleave', () => {
-          if (hoveredSpecId === spec.id) hoveredSpecId = null
-          card.clear()
-        })
         btn.addEventListener('click', () => {
           if (btn.classList.contains('locked')) return
           bus.emit('intent:build', { specId: spec.id })
@@ -139,9 +137,13 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
       tile.progress.style.width = `${pct.toFixed(0)}%`
     }
 
-    // Keep the hover card's have/need numbers live while the bank moves.
-    const hovered = hoveredSpecId ? view.catalog[hoveredSpecId] : undefined
-    if (hovered) card.show(cardFor(hovered, view))
+    // Keep the card filled and its have/need numbers live: last hovered
+    // airframe, or the first one before any hover.
+    const spec = (shownSpecId ? view.catalog[shownSpecId] : undefined) ?? Object.values(view.catalog)[0]
+    if (spec) {
+      shownSpecId = spec.id
+      card.show(cardFor(spec, view))
+    }
   })
 
   let playerId = ''

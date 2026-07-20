@@ -97,6 +97,28 @@ describe('C-03 air defense (interceptor missiles)', () => {
     expect(s.projectiles.length).toBe(0)
   })
 
+  it('defends the base: a diving kamikaze wave gets shot out of the sky', () => {
+    let s = withBattery()
+    const ids = ['k0', 'k1', 'k2']
+    ids.forEach((id, i) => {
+      s.drones.push(makeDrone(getDrone('fpv-strike')!, 'beta', { x: 1700, y: 60, z: 880 + i * 40 }, id))
+    })
+    s = tick(s, [
+      { type: 'attack', playerId: 'beta', droneIds: ids, targetId: 'ad1', origin: 'policy' },
+    ]).state
+    let shotDown = 0
+    for (let t = 0; t < 40 * 20 && s.drones.some((d) => ids.includes(d.id)); t++) {
+      const r = tick(s, [])
+      s = r.state
+      shotDown += r.events.filter(
+        (e) => e.type === 'destroyed' && e.cause === 'munition' && ids.includes(e.entityId),
+      ).length
+    }
+    // The whole wave dies to interceptors before anything connects.
+    expect(shotDown).toBe(3)
+    expect(battery(s).hp).toBe(1800)
+  })
+
   it('is a detector: powered radar reveals drones far beyond normal structure sight', () => {
     let s = withBattery()
     // 700 m out: past the 500 m structure sight, inside the 800 m radar.

@@ -659,6 +659,16 @@ button:disabled {
   opacity: 0.35;
 }
 
+/* Inapplicable orders vanish: each unit type reads as its own card. */
+.order-slot.off {
+  opacity: 0.5;
+  pointer-events: none;
+  border-color: var(--line);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.order-slot.off .order-icon { visibility: hidden; }
+
 .order-slot.armed:not(:disabled) {
   color: var(--accent);
   border-color: var(--line-strong);
@@ -827,6 +837,9 @@ button:disabled {
   align-items: center;
   gap: 4px;
   color: var(--text-dim);
+  /* fixed columns so rolling across tiles never slides the numbers */
+  min-width: 84px;
+  flex: none;
 }
 
 .bc-cost.ok { color: var(--good); }

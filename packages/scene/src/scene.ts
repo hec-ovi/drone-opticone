@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
 import {
+  AIR_DEFENSE_RANGE_M,
   FOG_EXPLORED,
   FOG_GRID,
   FOG_VISIBLE,
@@ -157,6 +158,21 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     depthWrite: false,
     side: THREE.DoubleSide,
   })
+  // Engagement radius shown while an own air-defense battery is selected.
+  const rangeRing = new THREE.Mesh(
+    new THREE.RingGeometry(AIR_DEFENSE_RANGE_M - 5, AIR_DEFENSE_RANGE_M, 96),
+    new THREE.MeshBasicMaterial({
+      color: 0xf28f6b,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    }),
+  )
+  rangeRing.rotation.x = -Math.PI / 2
+  rangeRing.visible = false
+  scene.add(rangeRing)
+
   const ghost = new THREE.Group()
   const ghostPad = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 4, 24), ghostMat)
   ghostPad.position.y = 2
@@ -400,12 +416,12 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
         )
         g.add(core)
         const glow = new THREE.Sprite(glowSpriteMaterial(interceptor ? 0x6fe0ff : 0xffb84d, 0.55))
-        glow.scale.setScalar(interceptor ? 10 : 12)
+        glow.scale.setScalar(interceptor ? 16 : 12)
         g.add(glow)
         if (interceptor) {
-          const trail = new THREE.Sprite(glowSpriteMaterial(0x9fd6e8, 0.3))
-          trail.scale.set(4, 22, 1)
-          trail.position.y = -12
+          const trail = new THREE.Sprite(glowSpriteMaterial(0x9fd6e8, 0.35))
+          trail.scale.set(5, 30, 1)
+          trail.position.y = -16
           g.add(trail)
         }
         return g
@@ -463,6 +479,15 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
         .filter((n) => n.id === selectedNodeId)
         .map((n) => ({ id: n.id, pos: n.pos, r: 55, color: friendlyColor })),
     ]
+    // Selected own battery: show its engagement radius.
+    const adSelected = view.structures.find(
+      (st) => st.id === selectedStructureId && st.kind === 'air-defense' && st.playerId === view.playerId,
+    )
+    rangeRing.visible = Boolean(adSelected)
+    if (adSelected) {
+      rangeRing.position.set(adSelected.pos.x, groundY(adSelected.pos.x, adSelected.pos.z) + 2, adSelected.pos.z)
+    }
+
     // Standing rings on whatever the selection is working on: red on attack
     // targets, teal on mined nodes, a small accent marker on move points.
     const TARGET_COLOR = { attack: 0xff5b5b, mine: 0x63e6c4, move: 0x3ec6ff } as const

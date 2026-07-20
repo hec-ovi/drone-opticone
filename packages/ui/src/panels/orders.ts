@@ -70,7 +70,7 @@ const ORDERS: OrderDef[] = [
     label: 'Clear policy',
     desc: 'Drop the standing order.',
     icon: ORDER_ICONS.clear,
-    applies: (sel, _c, pid) => sel.drones.some((d) => d.playerId === pid),
+    applies: (sel, _c, pid) => sel.drones.some((d) => d.playerId === pid && d.policy !== null),
     fire: (bus) => bus.emit('intent:policy', null),
   },
   {
@@ -122,12 +122,29 @@ export function commandCard(root: HTMLElement, bus: Bus<ClientTopics>): () => vo
       const on = def.applies(selection, catalog, playerId)
       b.disabled = !on
       b.classList.toggle('armed', on)
+      // Per-unit card: inapplicable actions vanish instead of greying out,
+      // so a miner, a bomber and a building each show their own orders.
+      b.classList.toggle('off', !on)
     }
   }
 
   const offView = bus.on('view', (view: PlayerView) => {
     catalog = view.catalog
     playerId = view.playerId
+    // Live selection: re-resolve ids against the fresh view so orders that
+    // depend on unit state (e.g. Clear policy) follow the sim.
+    selection = {
+      drones: selection.drones
+        .map((d) => [...view.ownDrones, ...view.enemyDrones].find((x) => x.id === d.id))
+        .filter((x): x is Selection['drones'][number] => x !== undefined),
+      structures: selection.structures
+        .map((s) => view.structures.find((x) => x.id === s.id))
+        .filter((x): x is Selection['structures'][number] => x !== undefined),
+      nodes: selection.nodes
+        .map((n) => view.nodes.find((x) => x.id === n.id))
+        .filter((x): x is Selection['nodes'][number] => x !== undefined),
+    }
+    refresh()
   })
   const offSel = bus.on('selection', (sel: Selection) => {
     selection = sel

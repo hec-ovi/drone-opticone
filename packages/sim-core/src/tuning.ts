@@ -1,4 +1,10 @@
-import { AIR_DEFENSE_AMMO_MAX, type DroneClass, type DroneSpec, type StructureKind } from '@opticone/shared'
+import {
+  AIR_DEFENSE_AMMO_MAX,
+  AIR_DEFENSE_RANGE_M,
+  type DroneClass,
+  type DroneSpec,
+  type StructureKind,
+} from '@opticone/shared'
 
 export { AIR_DEFENSE_AMMO_MAX }
 
@@ -19,7 +25,7 @@ export const TUNING = {
    * missiles from a finite rack, auto-reloaded from the bank.
    */
   airDefense: {
-    rangeM: 400,
+    rangeM: AIR_DEFENSE_RANGE_M,
     sightM: 800,
     cooldownS: 2.5,
     damage: 250,
