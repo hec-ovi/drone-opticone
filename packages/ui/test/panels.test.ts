@@ -1,0 +1,203 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { screen } from '@testing-library/dom'
+import userEvent from '@testing-library/user-event'
+import { Bus, type ClientTopics, type PlayerView, type PolicySpec } from '@opticone/shared'
+import { getCatalog, SEED_DRONES } from '@opticone/registry'
+import { createMatch, snapshot, tick } from '@opticone/sim-core'
+import { mountUI, minimapToWorld, worldToMinimap, MINIMAP_SIZE, portraitSvg } from '@opticone/ui'
+
+function humanView(mutate?: (v: PlayerView) => void): PlayerView {
+  const s = tick(
+    createMatch(3, 'map-1', ['human', 'bot'], getCatalog(), { fixedWind: { dirRad: 0, speedMps: 4 } }),
+    [],
+  ).state
+  const view = snapshot(s, 'human')
+  mutate?.(view)
+  return view
+}
+
+describe('C-05 minimap', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('pixel to world mapping round-trips', () => {
+    const p = worldToMinimap(1000, 3000, MINIMAP_SIZE, 4000)
+    const w = minimapToWorld(p.x, p.y, MINIMAP_SIZE, 4000)
+    expect(w.x).toBeCloseTo(1000)
+    expect(w.z).toBeCloseTo(3000)
+  })
+
+  it('clicking the minimap emits an intent:focus with world coordinates', async () => {
+    const user = userEvent.setup()
+    bus.emit('view', humanView())
+    const focuses: { x: number; z: number }[] = []
+    bus.on('intent:focus', (f) => focuses.push(f))
+    await user.pointer({ keys: '[MouseLeft]', target: screen.getByRole('img', { name: 'minimap' }) })
+    expect(focuses.length).toBe(1)
+    expect(focuses[0]!.x).toBeGreaterThanOrEqual(0)
+    expect(focuses[0]!.x).toBeLessThanOrEqual(4000)
+  })
+
+  it('the sweep toggle lives on the tactical map and arms sweep mode', async () => {
+    const user = userEvent.setup()
+    const modes: boolean[] = []
+    bus.on('intent:sweepMode', (on) => modes.push(on))
+    const btn = screen.getByRole('button', { name: 'Satellite sweep' })
+    await user.click(btn)
+    expect(btn).toHaveAttribute('aria-pressed', 'true')
+    expect(modes).toEqual([true])
+  })
+})
+
+describe('C-05 animated portraits', () => {
+  it.each(SEED_DRONES.map((s) => [s.id, s] as const))('%s portrait has animated parts', (_id, spec) => {
+    const svg = portraitSvg(spec)
+    expect(svg).toContain('p-rotor') // spinning rotor group
+    expect(svg).toContain('p-led') // blinking nav light
+    expect(svg).toContain('p-bob') // hover bob wrapper
+  })
+
+  it('portraits are distinct art per airframe, not one shared sprite', () => {
+    const byId = new Map(SEED_DRONES.map((s) => [s.id, portraitSvg(s)]))
+    expect(byId.get('mavic3')).not.toBe(byId.get('fpv-strike'))
+    expect(byId.get('tb2')).not.toBe(byId.get('shahed136'))
+    // Winged portraits show airflow streaks, hover portraits do not.
+    expect(byId.get('tb2')).toContain('p-stream')
+    expect(byId.get('mavic3')).not.toContain('p-stream')
+  })
+
+  it('selecting a drone renders its portrait in the selection panel', () => {
+    document.body.innerHTML = ''
+    const bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+    const view = humanView()
+    bus.emit('view', view)
+    const scout = view.ownDrones.find((d) => d.specId === 'mavic3')!
+    bus.emit('selection', [scout])
+    const portrait = document.querySelector('.portrait') as HTMLElement
+    expect(portrait).not.toBeNull()
+    expect(portrait.dataset.spec).toBe('mavic3')
+    expect(portrait.querySelector('.p-rotor')).not.toBeNull()
+    expect(portrait.querySelector('.p-scan')).not.toBeNull()
+
+    // Selection change swaps the portrait.
+    const miner = view.ownDrones.find((d) => d.specId === 'ore-miner')!
+    bus.emit('selection', [miner])
+    expect((document.querySelector('.portrait') as HTMLElement).dataset.spec).toBe('ore-miner')
+  })
+})
+
+describe('C-05 command card', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('order buttons stay disabled until something is selected', () => {
+    const kamikaze = screen.getByRole('button', { name: 'Kamikaze guard' })
+    expect(kamikaze).toBeDisabled()
+    const view = humanView()
+    bus.emit('selection', [view.ownDrones[0]!])
+    expect(kamikaze).toBeEnabled()
+    bus.emit('selection', [])
+    expect(kamikaze).toBeDisabled()
+  })
+
+  it('policy buttons publish typed policy intents', async () => {
+    const user = userEvent.setup()
+    const view = humanView()
+    bus.emit('selection', [view.ownDrones[0]!])
+    const policies: (PolicySpec | null)[] = []
+    bus.on('intent:policy', (p) => policies.push(p))
+
+    await user.click(screen.getByRole('button', { name: 'Kamikaze guard' }))
+    await user.click(screen.getByRole('button', { name: 'Return at 20%' }))
+    await user.click(screen.getByRole('button', { name: 'Clear policy' }))
+    expect(policies).toEqual([
+      { kind: 'kamikazeOn', radiusM: 600 },
+      { kind: 'returnAtBatteryPct', pct: 20 },
+      null,
+    ])
+  })
+
+  it('self-destruct publishes its intent', async () => {
+    const user = userEvent.setup()
+    bus.emit('selection', [humanView().ownDrones[0]!])
+    let destructs = 0
+    bus.on('intent:selfDestruct', () => destructs++)
+    await user.click(screen.getByRole('button', { name: 'Self-destruct' }))
+    expect(destructs).toBe(1)
+  })
+})
+
+describe('C-05 build queue and menu flow', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('queued builds show progress bars', () => {
+    bus.emit(
+      'view',
+      humanView((v) => {
+        v.tick = 100
+        v.builds = [{ id: 'b1', playerId: 'human', structureId: 's', specId: 'fpv-strike', readyAtTick: 150 }]
+      }),
+    )
+    const fill = document.querySelector('.queue-fill') as HTMLElement
+    expect(fill).not.toBeNull()
+    // fpv builds in 5s = 100 ticks; 50 remaining => 50%.
+    expect(fill.style.width).toBe('50%')
+  })
+
+  it('the start menu deploys a match with the chosen difficulty', async () => {
+    const user = userEvent.setup()
+    const starts: { seed: number; difficulty: string }[] = []
+    bus.on('intent:startMatch', (s) => starts.push(s))
+    await user.click(screen.getByRole('radio', { name: 'hard' }))
+    await user.click(screen.getByRole('button', { name: 'Deploy' }))
+    expect(starts.length).toBe(1)
+    expect(starts[0]!.difficulty).toBe('hard')
+    expect(Number.isFinite(starts[0]!.seed)).toBe(true)
+    // Menu hides itself after deploying.
+    expect(document.querySelector('.menu-overlay')!.classList.contains('hidden')).toBe(true)
+  })
+
+  it('the defeat screen can reopen the setup menu', async () => {
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Deploy' }))
+    bus.emit('view', humanView((v) => (v.winner = 'bot')))
+    expect(screen.getByRole('heading', { name: 'DEFEAT' })).toBeDefined()
+    await user.click(screen.getByRole('button', { name: 'Change setup' }))
+    expect(document.querySelector('.menu-overlay')!.classList.contains('hidden')).toBe(false)
+  })
+
+  it('the mute toggle publishes intent:mute', async () => {
+    const user = userEvent.setup()
+    const mutes: boolean[] = []
+    bus.on('intent:mute', (m) => mutes.push(m))
+    const btn = screen.getByRole('button', { name: 'toggle sound' })
+    await user.click(btn)
+    await user.click(btn)
+    expect(mutes).toEqual([true, false])
+    expect(btn).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('wind chip flags dangerous wind', () => {
+    bus.emit('view', humanView((v) => (v.wind.speedMps = 11)))
+    expect(document.querySelector('.wind-chip')!.classList.contains('warn')).toBe(true)
+    bus.emit('view', humanView((v) => (v.wind.speedMps = 4)))
+    expect(document.querySelector('.wind-chip')!.classList.contains('warn')).toBe(false)
+  })
+})

@@ -13,15 +13,15 @@ Core ideas:
 
 ## Status
 
-Playable 1 vs AI prototype. The system is split into 13 isolated contracts in [contracts.md](contracts.md); built so far:
+Playable 1 vs AI game, start menu to victory screen. The system is split into 13 isolated contracts in [contracts.md](contracts.md); built so far:
 
 - C-01 registry (`packages/registry`): 7 seed drones from public spec sheets, plus validation that rejects physically impossible uploads (10..500 W/kg specific power band).
-- C-03 sim core (`packages/sim-core`): deterministic 20 Hz headless tick. Wind above a drone's spec limit makes it drift uncontrolled, batteries drain at the endurance-derived wattage and a dead battery is a crash, kamikazes detonate on proximity, bombers lob ballistic munitions, miners haul lithium and oil, refineries crack oil into plastic, fog of war plus satellite sweeps, centcomm kill wins. Terrain elevation is authoritative: drones hold altitude above ground level at their climb rate, wind-blown drones fly into hillsides, munitions impact on the relief.
-- C-07 agents (`packages/agents`): standing policies (patrol, mine, hunt, kamikaze trigger, return at low battery) that keep working outside control range, and a deterministic overlord AI opponent.
-- C-04 scene (`packages/scene`): three.js r185 WebGPU renderer (WebGL2 fallback), RTS camera (edge pan, middle-drag orbit, zoom-scaled speed), procedural terrain with a generated texture, modeled structures and resource nodes, fog overlay.
-- C-05 UI (`packages/ui`): resource bar, factory build menu, satellite sweep toggle, selection panel, battle log, victory banner. DOM only, talks over the bus.
+- C-03 sim core (`packages/sim-core`): deterministic 20 Hz headless tick. Wind above a drone's spec limit makes it drift uncontrolled, batteries drain at the endurance-derived wattage and a dead battery is a crash, kamikazes detonate on proximity, bombers lob ballistic munitions, miners haul lithium and oil, refineries crack oil into plastic, fog of war plus satellite sweeps, centcomm kill wins. Terrain elevation is authoritative: drones hold altitude above ground level, wind-blown drones fly into hillsides, munitions impact on the relief. Group orders fan out over a formation disc, own drones run collision avoidance instead of dying on the spawn pad, enemy midair contact is still fatal for both.
+- C-07 agents (`packages/agents`): standing policies (patrol, mine, hunt, kamikaze trigger, return at low battery) that keep working outside control range, and a deterministic overlord AI opponent that builds an economy, keeps a kamikaze guard on every striker, waits out gales, and wins a full match end to end (the test proves it).
+- C-04 scene (`packages/scene`): three.js r185 WebGPU renderer (WebGL2 fallback). Every airframe is a modeled, animated unit: spinning rotors with blur discs, banking into turns, hover bob, loss-of-control flutter, blob shadows. Structures live too: rotating CENTCOM radar, refinery flare burning, factory crane sliding, uplink dish tracking, pumpjacks nodding, lithium crystals pulsing. Explosions with debris and smoke, mining beams, order markers, floating health bars, satellite sweep radar rings. Terrain with generated texture, scattered rocks and shrubs, sky dome, sun shadows. RTS camera with edge pan, middle-drag orbit, box select, Shift+1..9 control groups.
+- C-05 UI (`packages/ui`): full HUD, no stock widgets. Iconed resource bar with wind compass and match clock, canvas minimap (terrain, fog, units, camera viewport, click to move the camera, satellite sweep toggle), StarCraft-style animated unit portraits (spinning rotors, scanline sweep, blinking nav lights), factory build cards with cost chips and queue progress bars, orders card for policies and self-destruct, battle log, start menu with difficulty and seed, victory/defeat screen, field manual overlay.
 - C-06 telemetry (`packages/telemetry`): reconnecting WebSocket channel (sequence numbers, rtt pings, batched metrics) plus a tiny room relay server that pairs two clients per match and never reads payloads. The transport behind the upcoming 1v1 mode.
-- App shell (`apps/client`): Vite app wiring it all together.
+- App shell (`apps/client`): Vite app wiring it all together, plus procedural WebAudio sound effects (explosions, alerts, victory sting; no audio assets) with a mute toggle.
 
 Not built yet: 1v1 wiring on top of C-06, C-02 asset pipeline, C-08..C-12 backend services, C-13 AI dialog and TTS.
 
@@ -29,16 +29,16 @@ Not built yet: 1v1 wiring on top of C-06, C-02 asset pipeline, C-08..C-12 backen
 
 ```
 npm install
-npm test          # 56 tests: determinism, physics sanity, economy, combat, UI
-npm run dev       # then open the printed URL, you play vs the overlord AI
+npm test          # 129 tests: determinism, physics, economy, combat, UI, e2e AI match
+npm run dev       # then open the printed URL, pick a difficulty, Deploy
 npm run build     # static bundle, CDN-ready
 ```
 
-Controls: left-click select (shift adds), right-click move / attack / mine, pan with WASD, arrows, the mouse at the screen edge, or hold left+right buttons and drag, middle-drag to rotate and tilt, wheel zoom, satellite sweep via the toggle then click the map. URL params: `?seed=123&difficulty=easy|normal|hard`.
+Controls: left-click select, drag for box select (shift adds), right-click move / attack / mine, pan with WASD, arrows, the screen edge, or hold left+right and drag, middle-drag to rotate and tilt, wheel zoom. Shift+1..9 stores a control group, 1..9 recalls it, double tap centers the camera on it. Satellite sweep arms on the tactical map, then click the field. URL params `?seed=123&difficulty=easy|normal|hard` prefill the menu.
 
 ## Stack
 
-- Client: three.js r185 (WebGPU renderer, WebGL2 fallback), TypeScript, Vite, static files servable from a CDN.
+- Client: three.js r185 (WebGPU renderer, WebGL2 fallback), TypeScript, Vite, static files servable from a CDN. Fonts bundled via @fontsource, sounds synthesized in WebAudio, so there are no runtime asset fetches.
 - Tests: Vitest, Testing Library (jsdom) for UI panels.
-- Telemetry and match transport: plain WebSocket next, isolated behind its own contract.
+- Telemetry and match transport: plain WebSocket, isolated behind its own contract.
 - Backend: serverless functions plus a small database for accounts, store, wallet, leaderboard (not started).

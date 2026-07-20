@@ -20,7 +20,7 @@ export const CAM = {
 
 export class CameraRig {
   focus = { x: 0, z: 0 }
-  dist = 1600
+  dist = 1250
   yaw = 0
   pitch = 0.9
 

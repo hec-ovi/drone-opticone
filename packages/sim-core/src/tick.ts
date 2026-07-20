@@ -118,13 +118,23 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
       if ((cmd.origin ?? 'player') === 'player' && !hasControlLink(s, d)) continue
 
       switch (cmd.type) {
-        case 'move':
+        case 'move': {
+          // Formation fan-out: a group ordered to one point spreads over a
+          // deterministic golden-angle disc so drones never stack.
+          const idx = cmd.droneIds.indexOf(droneId)
+          const angle = idx * 2.399963
+          const radius = TUNING.formationSpacingM * Math.sqrt(idx)
           d.mode = 'moving'
-          d.dest = { x: cmd.to.x, y: targetAltitude(sp), z: cmd.to.z }
+          d.dest = {
+            x: cmd.to.x + Math.cos(angle) * radius,
+            y: targetAltitude(sp),
+            z: cmd.to.z + Math.sin(angle) * radius,
+          }
           d.targetId = null
           d.nodeId = null
           d.patrol = null
           break
+        }
         case 'patrol':
           d.mode = 'patrol'
           d.patrol = {
@@ -408,13 +418,25 @@ function updateCollisions(s: MatchState, events: SimEvent[]): void {
       const a = s.drones[i]!
       const b = s.drones[j]!
       if (a.hp <= 0 || b.hp <= 0) continue
-      if (dist3D(a.pos, b.pos) <= TUNING.collisionDistM) {
-        a.hp = 0
-        b.hp = 0
-        events.push({ type: 'collided', aId: a.id, bId: b.id })
-        events.push({ type: 'destroyed', entityId: a.id, playerId: a.playerId, cause: 'collision' })
-        events.push({ type: 'destroyed', entityId: b.id, playerId: b.playerId, cause: 'collision' })
+      const d = dist3D(a.pos, b.pos)
+      if (d > TUNING.collisionDistM) continue
+      if (a.playerId === b.playerId) {
+        // Own drones run collision avoidance: push apart, no damage.
+        const dx = b.pos.x - a.pos.x
+        const dz = b.pos.z - a.pos.z
+        const len = Math.hypot(dx, dz) || 1
+        const push = (TUNING.collisionDistM - d) / 2 + 0.5
+        a.pos.x -= (dx / len) * push
+        a.pos.z -= (dz / len) * push
+        b.pos.x += (dx / len) * push
+        b.pos.z += (dz / len) * push
+        continue
       }
+      a.hp = 0
+      b.hp = 0
+      events.push({ type: 'collided', aId: a.id, bId: b.id })
+      events.push({ type: 'destroyed', entityId: a.id, playerId: a.playerId, cause: 'collision' })
+      events.push({ type: 'destroyed', entityId: b.id, playerId: b.playerId, cause: 'collision' })
     }
   }
 }
@@ -496,8 +518,11 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
     if (!factory || !sp) continue
     const id = `e${s.nextEntityId++}`
     const alt = targetAltitude(sp)
-    const x = factory.pos.x + 30
-    const z = factory.pos.z + 30
+    // Spawn ring: consecutive builds leave the pad at different bearings so
+    // fresh drones never stack on one point.
+    const spawnAngle = s.nextEntityId * 2.399963
+    const x = factory.pos.x + Math.cos(spawnAngle) * TUNING.spawnRingM
+    const z = factory.pos.z + Math.sin(spawnAngle) * TUNING.spawnRingM
     s.drones.push(makeDrone(sp, job.playerId, { x, y: ground(s, x, z) + alt, z }, id))
     events.push({ type: 'spawned', entityId: id, playerId: job.playerId, specId: sp.id })
   }

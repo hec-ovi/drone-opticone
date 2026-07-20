@@ -47,6 +47,7 @@ export interface DroneState {
   batteryWh: number
   fuelKg: number
   hp: number
+  hpMax: number
   cargoKg: number
   cargoKind: NodeKind | null
   mode: DroneMode
@@ -67,6 +68,7 @@ export interface StructureState {
   playerId: string
   pos: Vec3
   hp: number
+  hpMax: number
 }
 
 export interface ResourceNodeState {

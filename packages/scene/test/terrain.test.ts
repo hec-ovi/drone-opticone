@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { terrainHeight } from '@opticone/shared'
+import { TERRAIN_AMPLITUDE, terrainHeight } from '@opticone/shared'
 
 const MAP = 4000
 const SEED = 1337
@@ -15,7 +15,7 @@ describe('C-04 terrain heightfield', () => {
     for (let x = 0; x < MAP; x += 97) {
       for (let z = 0; z < MAP; z += 97) {
         const h = terrainHeight(MAP, SEED, x, z)
-        expect(Math.abs(h)).toBeLessThanOrEqual(26)
+        expect(Math.abs(h)).toBeLessThanOrEqual(TERRAIN_AMPLITUDE)
       }
     }
   })

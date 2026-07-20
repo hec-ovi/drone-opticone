@@ -4,7 +4,7 @@
  * same relief for both players.
  */
 
-export const TERRAIN_AMPLITUDE = 26
+export const TERRAIN_AMPLITUDE = 80
 
 const NOISE_SCALE = 1 / 700
 

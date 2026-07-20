@@ -63,9 +63,21 @@ export function overlordAct(view: PlayerView, difficulty: Difficulty = 'normal')
     }
   }
 
-  // 3. Military: mass cheap FPV strikers.
+  // 3. Military: mass cheap FPV strikers. Every striker gets a standing
+  // kamikaze trigger the moment it exists, so the base is defended and a
+  // push detonates on contact even outside control range.
   if (strikers.length + queued('fpv-strike') < STRIKE_FORCE[difficulty]) {
     commands.push({ type: 'build', playerId: me, structureId: factory.id, specId: 'fpv-strike' })
+  }
+  for (const d of strikers) {
+    if (!d.policy) {
+      commands.push({
+        type: 'assignPolicy',
+        playerId: me,
+        droneIds: [d.id],
+        policy: { kind: 'kamikazeOn', radiusM: 600 },
+      })
+    }
   }
 
   // 4. Intel: periodic satellite sweep of the enemy corner once energy allows.
@@ -86,23 +98,14 @@ export function overlordAct(view: PlayerView, difficulty: Difficulty = 'normal')
           droneIds: idleStrikers.map((d) => d.id),
           targetId: enemyBase.id,
         })
-      } else if (view.tick % 100 === 0) {
+      } else if (view.tick % 100 === 0 && view.wind.speedMps <= 9) {
+        // Push only in flyable wind; above ~9 m/s the FPVs would drift off.
         commands.push({
           type: 'move',
           playerId: me,
           droneIds: idleStrikers.map((d) => d.id),
           to: { x: enemyCorner.x, y: 0, z: enemyCorner.z },
         })
-        for (const d of idleStrikers) {
-          if (!d.policy) {
-            commands.push({
-              type: 'assignPolicy',
-              playerId: me,
-              droneIds: [d.id],
-              policy: { kind: 'kamikazeOn', radiusM: 600 },
-            })
-          }
-        }
       }
     }
   }

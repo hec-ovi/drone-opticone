@@ -4,7 +4,7 @@ import type { DroneClass, DroneSpec, StructureKind } from '@opticone/shared'
 export const TUNING = {
   mapSizeM: 4000,
   structureHp: {
-    centcomm: 10000,
+    centcomm: 6000,
     refinery: 1500,
     factory: 2000,
     relay: 800,
@@ -14,9 +14,11 @@ export const TUNING = {
   droneRadiusM: 2,
   droneHpBase: 20,
   droneHpPerKg: 10,
-  damagePerPayloadKg: 200,
+  damagePerPayloadKg: 600,
   kamikazeTriggerM: 10,
   collisionDistM: 4,
+  formationSpacingM: 22,
+  spawnRingM: 55,
   munitionMassKg: 25,
   munitionDamage: 1500,
   munitionSplashM: 20,

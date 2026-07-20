@@ -14,14 +14,25 @@ import { GameShell, HUMAN, OVERLORD } from '../src/shell'
 class FakeScene implements ScenePort {
   views: PlayerView[] = []
   mode: SceneInteractionMode = 'normal'
+  focused: { x: number; z: number } | null = null
   private commandCb: (cmd: IssuedCommand) => void = () => {}
+  private selectionCb: (drones: DroneState[]) => void = () => {}
   applyView(view: PlayerView): void {
     this.views.push(view)
   }
   onCommand(cb: (cmd: IssuedCommand) => void): void {
     this.commandCb = cb
   }
-  onSelection(_cb: (drones: DroneState[]) => void): void {}
+  onSelection(cb: (drones: DroneState[]) => void): void {
+    this.selectionCb = cb
+  }
+  onCameraPose(_cb: (pose: { x: number; z: number; yaw: number; dist: number }) => void): void {}
+  focusAt(x: number, z: number): void {
+    this.focused = { x, z }
+  }
+  userSelects(drones: DroneState[]): void {
+    this.selectionCb(drones)
+  }
   setInteractionMode(mode: SceneInteractionMode): void {
     this.mode = mode
   }

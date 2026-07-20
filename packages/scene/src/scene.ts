@@ -3,6 +3,7 @@ import {
   FOG_EXPLORED,
   FOG_GRID,
   FOG_VISIBLE,
+  type CameraPose,
   type DroneState,
   type IssuedCommand,
   type PlayerView,
@@ -10,10 +11,13 @@ import {
   type ScenePort,
 } from '@opticone/shared'
 import { classifyPick, ndcToGround } from './pick'
-import { droneColor, droneMarkerSize } from './visuals'
 import { CameraRig } from './camera'
 import { makeTerrain, type Terrain } from './terrain'
 import { makeNodeObject, makeStructureObject } from './props'
+import { makeDroneModel, type DroneModel } from './models'
+import { makeScatter, makeSky } from './environment'
+import { makeEffects } from './effects'
+import { glowSpriteMaterial } from './glowtex'
 
 const PICK_TOLERANCE_M = 60
 
@@ -25,19 +29,30 @@ const PICK_TOLERANCE_M = 60
 export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> {
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: true })
   await renderer.init() // WebGPU when available, otherwise automatic WebGL2 fallback
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.15
 
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0x0b1016)
-  scene.fog = new THREE.Fog(0x0b1016, 3500, 14000)
+  scene.fog = new THREE.Fog(0x131a24, 3500, 16000)
   const camera = new THREE.PerspectiveCamera(55, 16 / 9, 1, 40000)
 
-  scene.add(new THREE.HemisphereLight(0xbdd2e8, 0x3a3226, 0.75))
-  const sun = new THREE.DirectionalLight(0xfff2dd, 1.4)
-  sun.position.set(1500, 3000, 800)
+  scene.add(new THREE.HemisphereLight(0xbdd2e8, 0x3a3226, 0.9))
+  const sun = new THREE.DirectionalLight(0xffe3b8, 1.6)
+  sun.castShadow = true
+  sun.shadow.mapSize.set(4096, 4096)
+  sun.shadow.bias = -0.0004
+  sun.shadow.intensity = 0.65
   scene.add(sun)
+  scene.add(sun.target)
+  const sky = makeSky(18000)
+  scene.add(sky)
 
   let mapSize = 4000
   let terrain: Terrain | null = null
+  let scatter: THREE.Group | null = null
 
   // Fog overlay: one canvas pixel per fog cell, floating above the relief.
   const fogCanvas = document.createElement('canvas')
@@ -68,8 +83,33 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   let mode: SceneInteractionMode = 'normal'
   let commandCb: (cmd: IssuedCommand) => void = () => {}
   let selectionCb: (drones: DroneState[]) => void = () => {}
+  let cameraPoseCb: (pose: CameraPose) => void = () => {}
+
+  // Control groups: Shift+1..9 assigns the current selection, 1..9 recalls,
+  // a quick double tap also centers the camera on the group.
+  const controlGroups = new Map<number, string[]>()
+  let lastRecall = { n: -1, at: 0 }
+
+  // Marquee (drag box) selection.
+  const marqueeEl = document.createElement('div')
+  marqueeEl.style.cssText =
+    'position:fixed;border:1px solid #5ee7c8;background:rgba(94,231,200,0.12);pointer-events:none;display:none;z-index:30'
+  ;(canvas.parentElement ?? document.body).appendChild(marqueeEl)
+  let marqueeActive = false
+  let marqueeFrom = { x: 0, y: 0 }
 
   const groundY = (x: number, z: number) => terrain?.heightAt(x, z) ?? 0
+
+  const fx = makeEffects(groundY)
+  scene.add(fx.group)
+
+  /** Is a world point inside the currently visible fog area of the view? */
+  function visibleAt(view: PlayerView, x: number, z: number): boolean {
+    const cell = view.mapSizeM / FOG_GRID
+    const i = Math.min(FOG_GRID - 1, Math.max(0, Math.floor(x / cell)))
+    const j = Math.min(FOG_GRID - 1, Math.max(0, Math.floor(z / cell)))
+    return view.fog[j * FOG_GRID + i] === FOG_VISIBLE
+  }
 
   function emitSelection(): void {
     if (!lastView) return
@@ -117,15 +157,49 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
 
   function applyView(view: PlayerView): void {
     lastView = view
+    // Capture positions before sync so anything that disappears can explode
+    // where it was last seen.
+    const prevDrones = new Map(
+      [...droneMeshes].map(([id, o]) => [id, { x: o.position.x, y: o.position.y, z: o.position.z, r: o.scale.x }]),
+    )
+    const prevStructures = new Map(
+      [...structureMeshes].map(([id, o]) => [id, { x: o.position.x, y: o.position.y, z: o.position.z }]),
+    )
+    const prevProjectiles = new Map(
+      [...projectileMeshes].map(([id, o]) => [id, { x: o.position.x, y: o.position.y, z: o.position.z }]),
+    )
     if (!terrain || view.mapSizeM !== mapSize) {
       mapSize = view.mapSizeM
       rig.setMapSize(mapSize)
       if (terrain) scene.remove(terrain.mesh)
       terrain = makeTerrain(mapSize, view.terrainSeed)
       scene.add(terrain.mesh)
+      if (scatter) scene.remove(scatter)
+      scatter = makeScatter({
+        mapSize,
+        seed: view.terrainSeed,
+        heightAt: terrain.heightAt,
+        avoid: [
+          { x: 500, z: 500, r: 320 },
+          { x: mapSize - 500, z: mapSize - 500, r: 320 },
+          ...view.nodes.map((n) => ({ x: n.pos.x, z: n.pos.z, r: 70 })),
+        ],
+      })
+      scene.add(scatter)
+      sky.position.set(mapSize / 2, 0, mapSize / 2)
+      sun.position.set(mapSize / 2 + mapSize, mapSize * 0.7, mapSize / 2 + mapSize * 0.5)
+      sun.target.position.set(mapSize / 2, 0, mapSize / 2)
+      const cam = sun.shadow.camera
+      cam.left = -mapSize * 0.75
+      cam.right = mapSize * 0.75
+      cam.top = mapSize * 0.75
+      cam.bottom = -mapSize * 0.75
+      cam.near = 100
+      cam.far = mapSize * 4
+      cam.updateProjectionMatrix()
       fogPlane.geometry.dispose()
       fogPlane.geometry = new THREE.PlaneGeometry(mapSize, mapSize)
-      fogPlane.position.set(mapSize / 2, 56, mapSize / 2)
+      fogPlane.position.set(mapSize / 2, 95, mapSize / 2)
     }
     if (!focused) {
       const base = view.structures.find((s) => s.playerId === view.playerId && s.kind === 'centcomm')
@@ -137,35 +211,57 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     }
 
     const drones = [...view.ownDrones, ...view.enemyDrones]
+    const makeDroneObj = (d: DroneState): THREE.Object3D => {
+      const spec = view.catalog[d.specId]!
+      const model = makeDroneModel(spec, d.playerId === view.playerId)
+      const obj = model.root
+      obj.userData.model = model
+      obj.userData.specKey = `${d.specId}/${d.playerId === view.playerId}`
+      obj.userData.heading = d.heading
+      // Soft blob shadow projected on the terrain; repositioned every frame.
+      const blob = new THREE.Mesh(
+        new THREE.CircleGeometry(0.55, 16),
+        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }),
+      )
+      blob.rotation.x = -Math.PI / 2
+      obj.add(blob)
+      obj.userData.blob = blob
+      obj.position.set(d.pos.x, Math.max(d.pos.y, groundY(d.pos.x, d.pos.z) + 12), d.pos.z)
+      return obj
+    }
     sync(
       droneMeshes,
       drones,
-      (d) => {
-        const spec = view.catalog[d.specId]!
-        const size = droneMarkerSize(spec.class)
-        const mesh = new THREE.Mesh(
-          new THREE.ConeGeometry(size / 2, size, 6),
-          new THREE.MeshLambertMaterial({ color: droneColor(d.playerId === view.playerId, spec.class) }),
-        )
-        if (spec.class === 'fixed-wing' || spec.class === 'loitering-munition') {
-          mesh.scale.set(1.6, 0.5, 1)
-        }
-        return mesh
-      },
+      makeDroneObj,
       (d, obj) => {
-        obj.position.set(d.pos.x, Math.max(d.pos.y, groundY(d.pos.x, d.pos.z) + 16), d.pos.z)
-        obj.rotation.y = -d.heading
-        const mesh = obj as THREE.Mesh
-        const mat = mesh.material as THREE.MeshLambertMaterial
-        mat.opacity = d.uncontrolled ? 0.55 : 1
-        mat.transparent = d.uncontrolled
+        // Restart or respawned id with a different airframe: rebuild the model.
+        if (obj.userData.specKey !== `${d.specId}/${d.playerId === view.playerId}`) {
+          scene.remove(obj)
+          const fresh = makeDroneObj(d)
+          droneMeshes.set(d.id, fresh)
+          scene.add(fresh)
+          obj = fresh
+        }
+        obj.userData.target = {
+          x: d.pos.x,
+          y: Math.max(d.pos.y, groundY(d.pos.x, d.pos.z) + 12),
+          z: d.pos.z,
+          heading: d.heading,
+        }
+        obj.userData.moving = d.mode !== 'idle'
+        obj.userData.uncontrolled = d.uncontrolled
       },
     )
 
     sync(
       structureMeshes,
       view.structures,
-      (s) => makeStructureObject(s.kind, s.playerId === view.playerId),
+      (s) => {
+        const obj = makeStructureObject(s.kind, s.playerId === view.playerId)
+        // Commander-view scale: structures are map markers like drones.
+        obj.scale.setScalar(1.5)
+        return obj
+      },
       (s, obj) => obj.position.set(s.pos.x, groundY(s.pos.x, s.pos.z), s.pos.z),
     )
 
@@ -183,8 +279,28 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     sync(
       projectileMeshes,
       view.projectiles,
-      () => new THREE.Mesh(new THREE.SphereGeometry(4, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffe066 })),
-      (p, obj) => obj.position.set(p.pos.x, p.pos.y, p.pos.z),
+      () => {
+        const g = new THREE.Group()
+        const core = new THREE.Mesh(
+          new THREE.CapsuleGeometry(1.6, 7, 3, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffd27a }),
+        )
+        g.add(core)
+        const glow = new THREE.Sprite(glowSpriteMaterial(0xffb84d, 0.55))
+        glow.scale.setScalar(12)
+        g.add(glow)
+        return g
+      },
+      (p, obj) => {
+        obj.position.set(p.pos.x, p.pos.y, p.pos.z)
+        const len = Math.hypot(p.vel.x, p.vel.y, p.vel.z)
+        if (len > 0.01) {
+          obj.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            new THREE.Vector3(p.vel.x / len, p.vel.y / len, p.vel.z / len),
+          )
+        }
+      },
     )
 
     for (const id of [...selected]) {
@@ -193,16 +309,59 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     sync(
       selectionRings,
       view.ownDrones.filter((d) => selected.has(d.id)),
-      () => {
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(14, 18, 24),
-          new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }),
+      (d) => {
+        const size = (droneMeshes.get(d.id)?.scale.x ?? 12) * 1.1
+        const g = new THREE.Group()
+        const inner = new THREE.Mesh(
+          new THREE.RingGeometry(size * 0.95, size * 1.02, 32),
+          new THREE.MeshBasicMaterial({
+            color: 0x5ee7c8,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false,
+          }),
         )
-        ring.rotation.x = -Math.PI / 2
-        return ring
+        inner.rotation.x = -Math.PI / 2
+        g.add(inner)
+        const outer = new THREE.Mesh(
+          new THREE.RingGeometry(size * 1.18, size * 1.3, 6),
+          new THREE.MeshBasicMaterial({
+            color: 0x5ee7c8,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.45,
+            depthWrite: false,
+          }),
+        )
+        outer.rotation.x = -Math.PI / 2
+        g.userData.spinner = outer
+        g.add(outer)
+        return g
       },
       (d, obj) => obj.position.set(d.pos.x, groundY(d.pos.x, d.pos.z) + 2.5, d.pos.z),
     )
+
+    // Anything gone from the view that was last seen in a lit cell blows up.
+    for (const [id, p] of prevDrones) {
+      if (!droneMeshes.has(id) && visibleAt(view, p.x, p.z)) {
+        fx.explosion(p, Math.max(8, p.r))
+        if (p.y - groundY(p.x, p.z) < 45) fx.scorch({ x: p.x, y: 0, z: p.z }, p.r * 1.4)
+      }
+    }
+    for (const [id, p] of prevStructures) {
+      if (!structureMeshes.has(id) && visibleAt(view, p.x, p.z)) {
+        fx.explosion({ x: p.x, y: p.y + 10, z: p.z }, 40)
+        fx.scorch({ x: p.x, y: 0, z: p.z }, 46)
+      }
+    }
+    for (const [id, p] of prevProjectiles) {
+      if (!projectileMeshes.has(id) && visibleAt(view, p.x, p.z)) {
+        fx.explosion(p, 14)
+        fx.scorch({ x: p.x, y: 0, z: p.z }, 17)
+      }
+    }
+    fx.syncView(view)
 
     drawFog(view.fog)
   }
@@ -217,8 +376,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   let movedPx = 0
   const clock = new THREE.Clock()
 
-  function updateCamera(): void {
-    const dt = Math.min(clock.getDelta(), 0.1)
+  function updateCamera(dt: number): void {
     rig.panFromKeys(keys, dt)
     if (pointer.inside && !rotating) {
       rig.panFromEdge(pointer.x, pointer.y, canvas.clientWidth || canvas.width, canvas.clientHeight || canvas.height, dt)
@@ -254,6 +412,21 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     movedPx = 0
   }
 
+  function updateMarqueeBox(ev: PointerEvent): void {
+    const left = Math.min(marqueeFrom.x, ev.clientX)
+    const top = Math.min(marqueeFrom.y, ev.clientY)
+    marqueeEl.style.left = `${left}px`
+    marqueeEl.style.top = `${top}px`
+    marqueeEl.style.width = `${Math.abs(ev.clientX - marqueeFrom.x)}px`
+    marqueeEl.style.height = `${Math.abs(ev.clientY - marqueeFrom.y)}px`
+    marqueeEl.style.display = 'block'
+  }
+
+  function cancelMarquee(): void {
+    marqueeActive = false
+    marqueeEl.style.display = 'none'
+  }
+
   function onPointerMove(ev: PointerEvent): void {
     const rect = canvas.getBoundingClientRect()
     pointer.x = ev.clientX - rect.left
@@ -261,10 +434,42 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     pointer.inside = true
     movedPx = Math.max(movedPx, Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y))
     if (dragPanning && (ev.buttons & 3) === 3) {
+      cancelMarquee()
       rig.dragPan(ev.movementX, ev.movementY)
       return
     }
-    if (rotating) rig.rotate(ev.movementX, ev.movementY)
+    if (rotating) {
+      rig.rotate(ev.movementX, ev.movementY)
+      return
+    }
+    // Left button alone dragging in normal mode: marquee selection box.
+    if (ev.buttons === 1 && mode === 'normal' && movedPx > 8) {
+      if (!marqueeActive) {
+        marqueeActive = true
+        marqueeFrom = { x: downPos.x, y: downPos.y }
+      }
+      updateMarqueeBox(ev)
+    }
+  }
+
+  function selectInMarquee(toX: number, toY: number, additive: boolean): void {
+    if (!lastView) return
+    const rect = canvas.getBoundingClientRect()
+    const minX = Math.min(marqueeFrom.x, toX)
+    const maxX = Math.max(marqueeFrom.x, toX)
+    const minY = Math.min(marqueeFrom.y, toY)
+    const maxY = Math.max(marqueeFrom.y, toY)
+    if (!additive) selected.clear()
+    camera.updateMatrixWorld()
+    const v = new THREE.Vector3()
+    for (const d of lastView.ownDrones) {
+      v.set(d.pos.x, d.pos.y, d.pos.z).project(camera)
+      if (v.z >= 1) continue
+      const sx = rect.left + ((v.x + 1) / 2) * rect.width
+      const sy = rect.top + ((1 - v.y) / 2) * rect.height
+      if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) selected.add(d.id)
+    }
+    emitSelection()
   }
 
   function onPointerUp(ev: PointerEvent): void {
@@ -274,6 +479,11 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       return
     }
     if ((ev.buttons & 3) !== 3) dragPanning = false
+    if (marqueeActive && ev.button === 0) {
+      cancelMarquee()
+      selectInMarquee(ev.clientX, ev.clientY, ev.shiftKey)
+      return
+    }
     if (ev.buttons === 0) {
       const wasSuppressed = suppressClick
       suppressClick = false
@@ -287,6 +497,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     if (!point) return
 
     if (mode === 'sweep' && ev.button === 0) {
+      fx.orderMarker(point, 'sweep')
       commandCb({ type: 'satelliteSweep', playerId: lastView.playerId, center: { x: point.x, z: point.z } })
       return
     }
@@ -303,10 +514,13 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     if (ev.button === 2 && selected.size > 0) {
       const droneIds = [...selected]
       if (target.kind === 'enemy' && target.id) {
+        fx.orderMarker(point, 'attack')
         commandCb({ type: 'attack', playerId: lastView.playerId, droneIds, targetId: target.id })
       } else if (target.kind === 'node' && target.id) {
+        fx.orderMarker(point, 'mine')
         commandCb({ type: 'mine', playerId: lastView.playerId, droneIds, nodeId: target.id })
       } else {
+        fx.orderMarker(point, 'move')
         commandCb({ type: 'move', playerId: lastView.playerId, droneIds, to: point })
       }
     }
@@ -321,7 +535,41 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     rig.zoom(ev.deltaY)
   }
 
-  const onKeyDown = (ev: KeyboardEvent) => keys.add(ev.code)
+  const onKeyDown = (ev: KeyboardEvent) => {
+    if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return
+    const digit = /^Digit([1-9])$/.exec(ev.code)
+    if (digit) {
+      const n = Number(digit[1])
+      if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+        // Assign the current selection to the group.
+        controlGroups.set(n, [...selected])
+        ev.preventDefault()
+      } else if (lastView) {
+        // Recall; a quick second tap centers the camera on the group.
+        const members = (controlGroups.get(n) ?? []).filter((id) =>
+          lastView!.ownDrones.some((d) => d.id === id),
+        )
+        selected.clear()
+        for (const id of members) selected.add(id)
+        emitSelection()
+        const now = performance.now()
+        if (lastRecall.n === n && now - lastRecall.at < 450 && members.length > 0) {
+          let cx = 0
+          let cz = 0
+          for (const id of members) {
+            const d = lastView.ownDrones.find((dd) => dd.id === id)!
+            cx += d.pos.x
+            cz += d.pos.z
+          }
+          rig.focus.x = cx / members.length
+          rig.focus.z = cz / members.length
+        }
+        lastRecall = { n, at: now }
+      }
+      return
+    }
+    keys.add(ev.code)
+  }
   const onKeyUp = (ev: KeyboardEvent) => keys.delete(ev.code)
   const onContext = (ev: Event) => ev.preventDefault()
 
@@ -344,8 +592,64 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   window.addEventListener('resize', resize)
   resize()
 
+  /** Wrap an angle delta into [-PI, PI] for shortest-arc turns. */
+  const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
+
+  function animateDrones(dt: number, elapsed: number): void {
+    const k = Math.min(1, dt * 10)
+    for (const obj of droneMeshes.values()) {
+      const model = obj.userData.model as DroneModel | undefined
+      if (!model) continue
+      const target = obj.userData.target as { x: number; y: number; z: number; heading: number } | undefined
+      let turning = 0
+      if (target) {
+        obj.position.x += (target.x - obj.position.x) * k
+        obj.position.y += (target.y - obj.position.y) * k
+        obj.position.z += (target.z - obj.position.z) * k
+        const delta = wrapAngle(target.heading - (obj.userData.heading as number))
+        obj.userData.heading = (obj.userData.heading as number) + delta * Math.min(1, dt * 8)
+        obj.rotation.y = -(obj.userData.heading as number)
+        turning = delta
+      }
+      const uncontrolled = Boolean(obj.userData.uncontrolled)
+      // Winged airframes bank into the turn.
+      if (!model.hovers && !uncontrolled) {
+        const bank = Math.max(-0.55, Math.min(0.55, turning * 4))
+        model.airframe.rotation.x += (bank - model.airframe.rotation.x) * Math.min(1, dt * 6)
+      }
+      model.animate(dt, elapsed, {
+        moving: Boolean(obj.userData.moving),
+        uncontrolled,
+      })
+      // Keep the blob shadow pinned to the ground below the drone.
+      const blob = obj.userData.blob as THREE.Mesh | undefined
+      if (blob) {
+        const scale = obj.scale.x || 1
+        const ground = groundY(obj.position.x, obj.position.z)
+        const agl = Math.max(0, obj.position.y - ground)
+        blob.position.y = (ground + 0.8 - obj.position.y) / scale
+        ;(blob.material as THREE.MeshBasicMaterial).opacity = Math.max(0.06, 0.32 - (agl / 700) * 0.26)
+      }
+    }
+  }
+
+  function animateProps(dt: number, elapsed: number): void {
+    for (const obj of structureMeshes.values()) obj.userData.animate?.(dt, elapsed)
+    for (const obj of nodeMeshes.values()) obj.userData.animate?.(dt, elapsed)
+    for (const obj of selectionRings.values()) {
+      const spinner = obj.userData.spinner as THREE.Object3D | undefined
+      if (spinner) spinner.rotation.z = elapsed * 1.4
+    }
+  }
+
   renderer.setAnimationLoop(() => {
-    updateCamera()
+    const dt = Math.min(clock.getDelta(), 0.1)
+    const elapsed = clock.elapsedTime
+    updateCamera(dt)
+    animateDrones(dt, elapsed)
+    animateProps(dt, elapsed)
+    fx.update(dt, elapsed, camera)
+    cameraPoseCb({ x: rig.focus.x, z: rig.focus.z, yaw: rig.yaw, dist: rig.dist })
     renderer.render(scene, camera)
   })
 
@@ -353,6 +657,11 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     applyView,
     onCommand: (cb) => (commandCb = cb),
     onSelection: (cb) => (selectionCb = cb),
+    onCameraPose: (cb) => (cameraPoseCb = cb),
+    focusAt: (x, z) => {
+      rig.focus.x = Math.max(0, Math.min(mapSize, x))
+      rig.focus.z = Math.max(0, Math.min(mapSize, z))
+    },
     setInteractionMode: (m) => (mode = m),
     dispose: () => {
       renderer.setAnimationLoop(null)
@@ -365,6 +674,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('resize', resize)
+      marqueeEl.remove()
       renderer.dispose()
     },
   }

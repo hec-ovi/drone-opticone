@@ -1,13 +1,16 @@
 import {
   Bus,
   type ClientTopics,
+  type DroneState,
   type IssuedCommand,
   type MatchState,
   type ScenePort,
+  type SimEvent,
 } from '@opticone/shared'
 import { createMatch, snapshot, tick } from '@opticone/sim-core'
 import { getCatalog } from '@opticone/registry'
 import { evaluatePolicies, overlordAct, type Difficulty } from '@opticone/agents'
+import type { SoundEngine } from './sound'
 
 export const HUMAN = 'human'
 export const OVERLORD = 'overlord'
@@ -19,39 +22,101 @@ export const OVERLORD = 'overlord'
  */
 export class GameShell {
   state: MatchState
+  running = false
+  private difficulty: Difficulty
   private queued: IssuedCommand[] = []
+  private selection: DroneState[] = []
   private offs: (() => void)[] = []
 
   constructor(
     private bus: Bus<ClientTopics>,
     private scene: ScenePort,
     seed: number,
-    private difficulty: Difficulty = 'normal',
+    difficulty: Difficulty = 'normal',
+    private sound?: SoundEngine,
   ) {
+    this.difficulty = difficulty
     this.state = createMatch(seed, 'map-1', [HUMAN, OVERLORD], getCatalog())
 
     this.scene.onCommand((cmd) => {
       this.queued.push(cmd)
+      this.sound?.play(cmd.type === 'satelliteSweep' ? 'sweep' : 'click')
       if (cmd.type === 'satelliteSweep') {
         this.scene.setInteractionMode('normal')
         this.bus.emit('sweepModeChanged', false)
       }
     })
-    this.scene.onSelection((drones) => this.bus.emit('selection', drones))
+    this.scene.onSelection((drones) => {
+      this.selection = drones
+      this.bus.emit('selection', drones)
+    })
+    this.scene.onCameraPose((pose) => this.bus.emit('cameraPose', pose))
 
     this.offs.push(
       this.bus.on('intent:build', ({ specId }) => {
         const factory = this.state.structures.find((s) => s.playerId === HUMAN && s.kind === 'factory')
-        if (factory) this.queued.push({ type: 'build', playerId: HUMAN, structureId: factory.id, specId })
+        if (factory) {
+          this.queued.push({ type: 'build', playerId: HUMAN, structureId: factory.id, specId })
+          this.sound?.play('build')
+        }
       }),
       this.bus.on('intent:sweepMode', (on) => this.scene.setInteractionMode(on ? 'sweep' : 'normal')),
-      this.bus.on('intent:restart', () => this.restart((this.state.tick + 1) * 7919)),
+      this.bus.on('intent:restart', () => this.startMatch((this.state.tick + 1) * 7919, this.difficulty)),
+      this.bus.on('intent:startMatch', ({ seed: s, difficulty: d }) => this.startMatch(s, d)),
+      this.bus.on('intent:focus', ({ x, z }) => this.scene.focusAt(x, z)),
+      this.bus.on('intent:policy', (policy) => {
+        if (this.selection.length === 0) return
+        this.queued.push({
+          type: 'assignPolicy',
+          playerId: HUMAN,
+          droneIds: this.selection.map((d) => d.id),
+          policy,
+        })
+        this.sound?.play('click')
+      }),
+      this.bus.on('intent:selfDestruct', () => {
+        if (this.selection.length === 0) return
+        this.queued.push({
+          type: 'selfDestruct',
+          playerId: HUMAN,
+          droneIds: this.selection.map((d) => d.id),
+        })
+      }),
+      this.bus.on('intent:mute', (muted) => {
+        if (this.sound) this.sound.muted = muted
+      }),
     )
   }
 
-  restart(seed: number): void {
+  startMatch(seed: number, difficulty: Difficulty): void {
+    this.difficulty = difficulty
     this.state = createMatch(seed, 'map-1', [HUMAN, OVERLORD], getCatalog())
     this.queued = []
+    this.selection = []
+    this.running = true
+    this.bus.emit('selection', [])
+  }
+
+  /** Kept for compatibility with older callers and tests. */
+  restart(seed: number): void {
+    this.startMatch(seed, this.difficulty)
+  }
+
+  /** Push the current view without ticking, e.g. as the menu backdrop. */
+  publishView(): void {
+    const view = snapshot(this.state, HUMAN)
+    this.scene.applyView(view)
+    this.bus.emit('view', view)
+  }
+
+  private playEventSounds(events: SimEvent[]): void {
+    if (!this.sound) return
+    for (const e of events) {
+      if (e.type === 'matchEnded') this.sound.play(e.winner === HUMAN ? 'victory' : 'defeat')
+      else if (e.type === 'destroyed') this.sound.play('explosion')
+      else if (e.type === 'batteryLow') this.sound.play('alert')
+      else if (e.type === 'spawned') this.sound.play('spawn')
+    }
   }
 
   /** One fixed 50 ms step: gather commands from every box, tick, publish. */
@@ -77,7 +142,11 @@ export class GameShell {
     const visible = result.events.filter(
       (e) => e.type === 'matchEnded' || ('playerId' in e && e.playerId === HUMAN),
     )
-    if (visible.length > 0) this.bus.emit('events', visible)
+    if (visible.length > 0) {
+      this.bus.emit('events', visible)
+      this.playEventSounds(visible)
+    }
+    if (this.state.winner) this.running = false
   }
 
   dispose(): void {

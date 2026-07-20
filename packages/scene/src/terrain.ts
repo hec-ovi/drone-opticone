@@ -43,7 +43,7 @@ function makeGroundTexture(mapSize: number, seed: number): THREE.CanvasTexture {
       color = mix(color, ROCK, terrainSmooth(Math.max(0, Math.min(1, (h - 0.68) / 0.12))))
 
       // High-frequency detail plus per-pixel grain so it holds up zoomed in.
-      const shade = 0.72 + detail * 0.42 + (grain - 0.5) * 0.12
+      const shade = 0.88 + detail * 0.5 + (grain - 0.5) * 0.14
       const o = (j * size + i) * 4
       img.data[o] = Math.min(255, color[0] * shade)
       img.data[o + 1] = Math.min(255, color[1] * shade)
@@ -71,8 +71,9 @@ export function makeTerrain(mapSize: number, seed: number): Terrain {
 
   const mesh = new THREE.Mesh(
     geometry,
-    new THREE.MeshLambertMaterial({ map: makeGroundTexture(mapSize, seed) }),
+    new THREE.MeshStandardMaterial({ map: makeGroundTexture(mapSize, seed), roughness: 0.95, metalness: 0 }),
   )
+  mesh.receiveShadow = true
   return {
     mesh,
     heightAt: (x, z) => terrainHeight(mapSize, seed, x, z),

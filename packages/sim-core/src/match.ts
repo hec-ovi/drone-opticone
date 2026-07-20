@@ -20,7 +20,7 @@ export interface MatchOptions {
 }
 
 function structure(id: string, kind: StructureKind, playerId: string, pos: Vec3) {
-  return { id, kind, playerId, pos, hp: TUNING.structureHp[kind] }
+  return { id, kind, playerId, pos, hp: TUNING.structureHp[kind], hpMax: TUNING.structureHp[kind] }
 }
 
 export function makeDrone(spec: DroneSpec, playerId: string, pos: Vec3, id: string): DroneState {
@@ -33,6 +33,7 @@ export function makeDrone(spec: DroneSpec, playerId: string, pos: Vec3, id: stri
     batteryWh: spec.batteryWh ?? 0,
     fuelKg: spec.batteryWh === null ? (spec.fuelKg ?? 0) : 0,
     hp: droneHp(spec),
+    hpMax: droneHp(spec),
     // winged bombers carry their munition mass as cargo; miners start empty
     cargoKg: spec.class === 'fixed-wing' ? spec.payloadKg : 0,
     cargoKind: null,
