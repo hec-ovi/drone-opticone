@@ -1,6 +1,6 @@
 import type { Bus, ClientTopics, PlayerView } from '@opticone/shared'
 import { ICONS, iconEl } from '../icons'
-import { button, clockText, el, fmt } from '../dom'
+import { button, clockText, el, fmtPad } from '../dom'
 import { attachTooltip } from '../tooltip'
 
 /**
@@ -103,15 +103,17 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
       view.structures.some(
         (st) => st.kind === 'refinery' && st.playerId === view.playerId && st.readyAtTick === undefined,
       )
-    credits.textContent = `Credits ${fmt(view.economy.credits)}`
-    lithium.textContent = `Lithium ${fmt(view.economy.lithiumKg)} kg`
-    oil.textContent = `Oil ${fmt(view.economy.oilKg)} kg${cracking ? ' -1/s' : ''}`
-    plastic.textContent = `Plastic ${fmt(view.economy.plasticKg)} kg${cracking ? ' +0.5/s' : ''}`
+    // Fixed-width readouts: values never shift the chips beside them.
+    credits.textContent = `Credits ${fmtPad(view.economy.credits)}`
+    lithium.textContent = `Lithium ${fmtPad(view.economy.lithiumKg)} kg`
+    oil.textContent = `Oil ${fmtPad(view.economy.oilKg)} kg${cracking ? ' -1/s' : ''}`
+    plastic.textContent = `Plastic ${fmtPad(view.economy.plasticKg)} kg${cracking ? ' +0.5/s' : ''}`
+    const pad3 = (n: number) => String(n).padStart(3, '0')
     power.textContent = brownout
-      ? `LOW POWER ${view.power.used}/${view.power.cap}`
-      : `Power ${view.power.used}/${view.power.cap}`
+      ? `LOW POWER ${pad3(view.power.used)}/${pad3(view.power.cap)}`
+      : `Power ${pad3(view.power.used)}/${pad3(view.power.cap)}`
     power.parentElement?.classList.toggle('warn', brownout)
-    sat.textContent = `Sat ${view.satellite.energy.toFixed(0)}`
+    sat.textContent = `Sat ${String(Math.round(view.satellite.energy)).padStart(3, '0')}`
     satFill.style.width = `${Math.round(view.satellite.energy)}%`
     windValue.textContent = `Wind ${view.wind.speedMps.toFixed(1)} m/s`
     wind.classList.toggle('warn', view.wind.speedMps > 9)

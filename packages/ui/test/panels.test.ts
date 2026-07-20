@@ -359,23 +359,23 @@ describe('C-05 construction panel and power', () => {
     const chips = [...panel.querySelectorAll('.bc-cost')]
     // lithium 15/50 ok, plastic 40/100 ok, credits 800/5000 ok, power 15/25 ok.
     expect(chips[0]!.className).toContain('ok')
-    expect(chips[0]!.textContent).toContain('15 / 50')
-    expect(chips[3]!.textContent).toContain('15 / 25')
+    expect(chips[0]!.textContent).toContain('0015 / 0050')
+    expect(chips[3]!.textContent).toContain('0015 / 0025')
     expect(panel.querySelector('.bc-dep')).not.toBeNull()
 
     // Short bank: the plastic chip flips red.
     bus.emit('view', humanView((v) => (v.economy.plasticKg = 5)))
     const plastic = [...panel.querySelectorAll('.bc-cost')][1]!
     expect(plastic.className).toContain('short')
-    expect(plastic.textContent).toContain('40 / 5')
+    expect(plastic.textContent).toContain('0040 / 0005')
   })
 
   it('the resource strip shows grid power and flags brownouts', () => {
     bus.emit('view', humanView())
     const value = document.querySelector('.res-power .res-value') as HTMLElement
-    expect(value.textContent).toBe('Power 75/100')
+    expect(value.textContent).toBe('Power 075/100')
     bus.emit('view', humanView((v) => (v.power = { used: 95, cap: 40 })))
-    expect(value.textContent).toBe('LOW POWER 95/40')
+    expect(value.textContent).toBe('LOW POWER 095/040')
     expect(value.closest('.res')!.classList.contains('warn')).toBe(true)
   })
 })

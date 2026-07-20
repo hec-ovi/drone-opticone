@@ -1,5 +1,5 @@
 import { ICONS, iconEl } from './icons'
-import { el, fmt } from './dom'
+import { el, fmt, fmtPad } from './dom'
 import { attachTooltip } from './tooltip'
 
 /**
@@ -64,7 +64,7 @@ export function buildInfoCard(parent: HTMLElement): InfoCard {
         const short = c.have < c.need
         const chip = el('span', `bc-cost ${short ? 'short' : 'ok'}`, costs)
         chip.appendChild(iconEl(c.icon, 'icon icon-s'))
-        chip.appendChild(document.createTextNode(`${fmt(c.need)} / ${fmt(c.have)}`))
+        chip.appendChild(document.createTextNode(`${fmtPad(c.need)} / ${fmtPad(c.have)}`))
         attachTooltip(
           chip,
           () =>
@@ -82,7 +82,7 @@ export function buildInfoCard(parent: HTMLElement): InfoCard {
       if (d.timeS !== undefined) {
         const t = el('span', 'bc-cost', costs)
         t.appendChild(iconEl(ICONS.clock, 'icon icon-s'))
-        t.appendChild(document.createTextNode(`${d.timeS}s`))
+        t.appendChild(document.createTextNode(`${String(d.timeS).padStart(3, '0')}s`))
         attachTooltip(t, () => 'BUILD TIME · seconds of work once the job starts.')
       }
       deps.textContent = ''

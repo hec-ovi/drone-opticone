@@ -25,8 +25,8 @@ describe('C-05 UI panels', () => {
   it('resource bar renders economy and satellite state from the view topic', () => {
     bus.emit('view', humanView())
     const bar = screen.getByRole('status', { name: 'resources' })
-    expect(bar.textContent).toContain('Credits 5.0k')
-    expect(bar.textContent).toContain('Lithium 50 kg')
+    expect(bar.textContent).toContain('Credits 5000')
+    expect(bar.textContent).toContain('Lithium 0050 kg')
     expect(bar.textContent).toContain('Sat 100')
   })
 
@@ -34,7 +34,7 @@ describe('C-05 UI panels', () => {
     const user = userEvent.setup()
     bus.emit('view', humanView((v) => (v.economy.oilKg = 40)))
     const bar = screen.getByRole('status', { name: 'resources' })
-    expect(bar.textContent).toContain('Oil 40 kg -1/s')
+    expect(bar.textContent).toContain('Oil 0040 kg -1/s')
     expect(bar.textContent).toContain('+0.5/s')
 
     await user.hover(document.querySelector('.res-lithium') as HTMLElement)
