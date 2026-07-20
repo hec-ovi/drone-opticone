@@ -12,13 +12,11 @@ import { nodePortraitEl, portraitEl, structurePortraitEl } from '../portraits'
  */
 export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const panel = el('section', 'panel selection-panel', root)
-  const heading = el('h2', '', panel)
-  heading.textContent = 'Selection'
   const plate = el('div', 'plate', panel)
   const portraitSlot = el('div', 'plate-portrait', plate)
   const infoCol = el('div', 'plate-info', plate)
   const empty = el('p', 'selection-empty', plate)
-  empty.textContent = 'Nothing selected. Factory builds drones; CENTCOM constructs buildings.'
+  empty.textContent = 'Nothing selected'
 
   let catalog: PlayerView['catalog'] = {}
   let playerId = ''
@@ -161,21 +159,6 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
         `${Math.ceil(structure.hp)}/${Math.ceil(structure.hpMax)}`,
         (structure.hp / structure.hpMax) * 100,
       )
-      if (!hostile) {
-        const hint = el('p', 'sel-hint', infoCol)
-        hint.textContent =
-          structure.kind === 'factory'
-            ? 'Queue drones from the Factory tiles.'
-            : structure.kind === 'satellite-uplink'
-              ? 'Arm a sweep from the order grid.'
-              : structure.kind === 'refinery'
-                ? 'Cracks stored oil into plastic.'
-                : structure.kind === 'relay'
-                  ? 'Extends the control link.'
-                  : structure.kind === 'power-plant'
-                    ? 'Feeds the power grid.'
-                    : 'Constructs buildings; lose it and the match is over.'
-      }
       return
     }
 
@@ -193,8 +176,6 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
         `${fmt(node.remainingKg)} kg left`,
         (node.remainingKg / 1500) * 100,
       )
-      const hint = el('p', 'sel-hint', infoCol)
-      hint.textContent = 'Right-click with miners selected to harvest.'
     }
   }
 

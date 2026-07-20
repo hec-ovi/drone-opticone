@@ -65,7 +65,15 @@ export async function generateThumbnails(catalog: Record<string, DroneSpec>): Pr
     for (const spec of Object.values(catalog)) {
       set.drones[spec.id] = snap(makeDroneModel(spec, true).root)
     }
-    const kinds: StructureKind[] = ['centcomm', 'refinery', 'factory', 'relay', 'satellite-uplink', 'power-plant']
+    const kinds: StructureKind[] = [
+      'centcomm',
+      'refinery',
+      'factory',
+      'relay',
+      'satellite-uplink',
+      'power-plant',
+      'air-defense',
+    ]
     for (const kind of kinds) {
       set.structures[kind] = snap(makeStructureObject(kind, true))
     }

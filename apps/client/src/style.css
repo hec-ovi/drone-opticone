@@ -246,33 +246,17 @@ button:disabled {
 
 /* --------------------------------------------------------------- minimap */
 
-.minimap-panel {
+/* Pure map: the canvas IS the panel, edge to edge, no chrome. */
+.console-main .minimap-panel {
   flex: none;
-}
-
-.minimap-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 5px;
-}
-
-.minimap-head h2 { margin: 0; }
-
-.sweep-state {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #b9a5ff;
-  animation: p-blink 1.1s steps(2, start) infinite;
+  padding: 0;
+  overflow: hidden;
 }
 
 .minimap-canvas {
   display: block;
-  width: 168px;
-  height: 168px;
-  border: 1px solid var(--line-strong);
+  height: 100%;
+  aspect-ratio: 1;
   cursor: crosshair;
 }
 
@@ -584,10 +568,10 @@ button:disabled {
 }
 
 .order-tooltip {
-  min-height: 24px;
-  font-size: 10.5px;
-  line-height: 1.25;
-  color: var(--text-dim);
+  min-height: 26px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--text);
   margin-bottom: 5px;
 }
 
@@ -684,9 +668,19 @@ button:disabled {
   outline: none;
 }
 
-.build-tile:disabled {
-  opacity: 0.38;
+.build-tile:disabled,
+.build-tile.locked {
+  opacity: 0.45;
   filter: grayscale(0.7);
+}
+
+.build-tile.locked:hover {
+  opacity: 0.8;
+}
+
+.tile-tag.warn {
+  color: var(--warn);
+  font-size: 7px;
 }
 
 .tile-img {
@@ -786,38 +780,6 @@ button:disabled {
 
 .structure-tile .tile-fallback {
   inset: 2px;
-}
-
-/* -------------------------------------------------------------- eventlog */
-
-.event-log {
-  flex: 1;
-  min-width: 230px;
-  font-size: 12px;
-}
-
-.event-lines {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.ev {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 0;
-  color: var(--text-dim);
-  border-bottom: 1px solid rgba(36, 56, 74, 0.5);
-}
-
-.ev-loss { color: #ff9f96; }
-.ev-loss .icon { color: var(--danger); }
-.ev-warn { color: var(--warn); }
-.ev-good { color: var(--good); }
-.ev-final {
-  color: #ffd97a;
-  font-weight: 700;
 }
 
 /* -------------------------------------------------------------- overlays */
@@ -1036,5 +998,4 @@ button:disabled {
 
 @media (max-width: 1250px) {
   .selection-panel { width: 300px; }
-  .event-log { width: 210px; }
 }

@@ -294,6 +294,22 @@ function structureArt(kind: StructureKind): string {
   <path d="M98 88V56m-5 6h10m-8-8h6" stroke="${HULL_LIGHT}" stroke-width="2"/>
   ${led(98, 50, '#63e6c4', 0.2)}
   <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>`
+    case 'air-defense':
+      return `
+  <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>
+  <rect x="34" y="76" width="36" height="10" rx="2" fill="${HULL_DARK}" stroke="${HULL}" stroke-width="1"/>
+  <g transform="rotate(-32 52 72)">
+    <rect x="38" y="60" width="34" height="5" rx="2.5" fill="${HULL_LIGHT}"/>
+    <rect x="38" y="67" width="34" height="5" rx="2.5" fill="${HULL}"/>
+    <circle cx="74" cy="62.5" r="3" fill="var(--accent,#3ec6ff)" class="p-led"/>
+    <circle cx="74" cy="69.5" r="3" fill="var(--accent,#3ec6ff)" class="p-led" style="animation-delay:0.5s"/>
+  </g>
+  <line x1="86" y1="86" x2="86" y2="52" stroke="${HULL}" stroke-width="3"/>
+  <g class="p-rotor" style="transform-origin:86px 50px;animation-duration:1.6s">
+    <rect x="76" y="47" width="20" height="5" rx="1.5" fill="${HULL_LIGHT}"/>
+  </g>
+  ${led(86, 40, '#ff5b5b', 0.2)}
+  <circle cx="86" cy="50" r="14" fill="none" stroke="var(--accent,#3ec6ff)" stroke-width="1" opacity="0.35" class="p-led"/>`
   }
 }
 

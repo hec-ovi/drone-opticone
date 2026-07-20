@@ -30,7 +30,7 @@ describe('C-05 UI panels', () => {
     expect(bar.textContent).toContain('Sat 100')
   })
 
-  it('build menu enables affordable drones, disables the rest, and emits build intents', async () => {
+  it('build menu locks unaffordable tiles WITH the reason on the tile, and emits build intents', async () => {
     const user = userEvent.setup()
     const v0 = humanView()
     bus.emit('view', v0)
@@ -39,12 +39,16 @@ describe('C-05 UI panels', () => {
 
     const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
     const tb2 = screen.getByRole('button', { name: /Build Baykar Bayraktar TB2/ })
-    expect(fpv).toBeEnabled()
-    // A TB2 costs 250k credits at 5% of the real unit price; the start stash is 5k.
-    expect(tb2).toBeDisabled()
+    expect(fpv.getAttribute('aria-disabled')).toBe('false')
+    // A TB2 airframe needs ~420 kg of plastic against a 100 kg start stash.
+    // The tile stays hoverable and its band says what is missing.
+    expect(tb2.getAttribute('aria-disabled')).toBe('true')
+    expect(tb2.classList.contains('locked')).toBe(true)
+    expect(tb2.querySelector('.tile-tag')!.textContent).toBe('NEED PLASTIC')
 
     const intents: { specId: string }[] = []
     bus.on('intent:build', (i) => intents.push(i))
+    await user.click(tb2) // locked: swallowed
     await user.click(fpv)
     expect(intents).toEqual([{ specId: 'fpv-strike' }])
   })
@@ -54,9 +58,10 @@ describe('C-05 UI panels', () => {
     bus.emit('view', broke)
     const factory = broke.structures.find((st) => st.kind === 'factory')!
     bus.emit('selection', { drones: [], structures: [factory], nodes: [] })
-    expect(screen.getByRole('button', { name: /Build FPV strike quad/ })).toBeDisabled()
+    const fpv = () => screen.getByRole('button', { name: /Build FPV strike quad/ })
+    expect(fpv().getAttribute('aria-disabled')).toBe('true')
     bus.emit('view', humanView())
-    expect(screen.getByRole('button', { name: /Build FPV strike quad/ })).toBeEnabled()
+    expect(fpv().getAttribute('aria-disabled')).toBe('false')
   })
 
   it('the sweep is an uplink order: selecting the uplink arms it', async () => {
@@ -83,21 +88,15 @@ describe('C-05 UI panels', () => {
     scout.uncontrolled = true
     bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
 
-    const list = within(screen.getByRole('heading', { name: 'Selection' }).parentElement as HTMLElement)
+    const list = within(document.querySelector('.selection-panel') as HTMLElement)
     expect(list.getByText(/DJI Mavic 3/)).toBeDefined()
     expect(list.getByText(/battery 50%/)).toBeDefined()
     expect(list.getByText(/NO LINK/)).toBeDefined()
   })
 
-  it('event log prints battle events, newest first', () => {
-    bus.emit('events', [
-      { type: 'destroyed', entityId: 'e1', playerId: 'human', cause: 'battery' },
-      { type: 'batteryLow', droneId: 'e2', playerId: 'human', pct: 20 },
-    ])
-    const log = screen.getByRole('log', { name: 'battle log' })
-    const lines = [...log.querySelectorAll('p')].map((p) => p.textContent)
-    expect(lines[0]).toContain('e2 battery below 20%')
-    expect(lines[1]).toContain('e1 down (battery)')
+  it('the battle log is gone: no log panel in the console', () => {
+    bus.emit('view', humanView())
+    expect(document.querySelector('.event-log')).toBeNull()
   })
 
   it('match banner appears on victory with a restart intent', async () => {

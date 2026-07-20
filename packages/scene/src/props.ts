@@ -452,6 +452,63 @@ export function makeStructureObject(kind: StructureKind, own: boolean): THREE.Gr
       }
       break
     }
+    case 'air-defense': {
+      // SAM battery: slewing quad missile rack on a turret ring plus a fast
+      // search radar. The detector half of "missile defense".
+      const slab = box(36, 3, 32, hullDark)
+      slab.position.y = 1.5
+      group.add(slab)
+      const ring = cyl(11, 13, 4, 12, hullDark)
+      ring.position.set(-4, 5, 2)
+      group.add(ring)
+      const turret = new THREE.Group()
+      turret.position.set(-4, 7, 2)
+      group.add(turret)
+      const cradle = box(10, 3, 8, hull)
+      cradle.position.y = 2
+      turret.add(cradle)
+      const rack = new THREE.Group()
+      rack.position.y = 4
+      rack.rotation.z = 0.6
+      turret.add(rack)
+      for (const [dy, dz] of [
+        [1.6, 1.6],
+        [1.6, -1.6],
+        [-1.6, 1.6],
+        [-1.6, -1.6],
+      ] as const) {
+        const tube = cyl(1.3, 1.3, 14, 8, hullLight)
+        tube.rotation.z = Math.PI / 2
+        tube.position.set(0, dy, dz)
+        rack.add(tube)
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(1.25, 8, 8), std(accent, { emissive: accent }))
+        cap.position.set(7, dy, dz)
+        rack.add(cap)
+      }
+      // Search radar on its own mast.
+      const mast = cyl(1.2, 1.5, 12, 6, hullDark)
+      mast.position.set(11, 8, -8)
+      group.add(mast)
+      const radar = new THREE.Group()
+      radar.position.set(11, 14.5, -8)
+      const panel = box(9, 4.5, 0.8, hullLight)
+      panel.position.y = 1.5
+      radar.add(panel)
+      group.add(radar)
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        std(accent, { emissive: accent }),
+      )
+      dome.position.set(10, 3, 8)
+      group.add(dome)
+      group.userData.animate = (_dt: number, elapsed: number) => {
+        radar.rotation.y = elapsed * 2.4
+        turret.rotation.y = Math.sin(elapsed * 0.4) * 1.1
+        const m = dome.material as THREE.MeshStandardMaterial
+        m.emissiveIntensity = 0.35 + Math.max(0, Math.sin(elapsed * 5)) * 0.7
+      }
+      break
+    }
   }
   return group
 }

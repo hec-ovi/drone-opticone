@@ -24,33 +24,31 @@ const BUILDABLE = Object.keys(STRUCTURE_BUILD) as StructureKind[]
 export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const panel = el('section', 'panel build-menu construct-menu', root)
   panel.style.display = 'none'
-  const heading = el('h2', '', panel)
-  heading.textContent = 'Construction'
   const grid = el('div', 'build-grid', panel)
   const info = el('p', 'build-info-strip', panel)
-  const IDLE_HINT = 'Click a structure, then click the field to place it.'
+  const IDLE_HINT = 'Pick a structure, then click the field.'
   info.textContent = IDLE_HINT
 
   let lastView: PlayerView | null = null
   let placing: StructureKind | null = null
 
+  const shortfall = (kind: StructureKind): string | null => {
+    if (!lastView) return null
+    const build = STRUCTURE_BUILD[kind]!
+    if (lastView.economy.lithiumKg < build.lithiumKg) return 'NEED LITHIUM'
+    if (lastView.economy.plasticKg < build.plasticKg) return 'NEED PLASTIC'
+    if (lastView.economy.credits < build.credits) return 'NEED CREDITS'
+    return null
+  }
+
   const describe = (kind: StructureKind): string => {
     const build = STRUCTURE_BUILD[kind]!
     const power = POWER_CAP[kind] ? `+${POWER_CAP[kind]} power` : `-${POWER_USE[kind] ?? 0} power`
-    const missing =
-      lastView === null
-        ? ''
-        : lastView.economy.lithiumKg < build.lithiumKg
-          ? ' | NEED LITHIUM'
-          : lastView.economy.plasticKg < build.plasticKg
-            ? ' | NEED PLASTIC'
-            : lastView.economy.credits < build.credits
-              ? ' | NEED CREDITS'
-              : ''
-    return `${STRUCTURE_NAME[kind]} | ${power} | ${fmt(build.lithiumKg)} li + ${fmt(build.plasticKg)} pl + ${fmt(build.credits)} cr | ${build.timeS}s${missing}`
+    const missing = shortfall(kind)
+    return `${STRUCTURE_NAME[kind]} · ${power} · ${fmt(build.lithiumKg)} li + ${fmt(build.plasticKg)} pl + ${fmt(build.credits)} cr · ${build.timeS}s${missing ? ` · ${missing}` : ''}`
   }
 
-  const tiles = new Map<string, { btn: HTMLButtonElement; image: HTMLImageElement }>()
+  const tiles = new Map<string, { btn: HTMLButtonElement; image: HTMLImageElement; tag: HTMLElement; roleTag: string }>()
   for (const kind of BUILDABLE) {
     const btn = document.createElement('button')
     btn.type = 'button'
@@ -61,16 +59,23 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     image.style.display = 'none'
     const fallback = el('span', 'tile-fallback tile-structure-art', btn)
     fallback.innerHTML = structurePortraitSvg(kind)
+    const roleTag = POWER_CAP[kind] ? 'PWR' : kind === 'air-defense' ? 'DEF' : 'BLD'
     const tag = el('span', 'tile-tag role-support', btn)
-    tag.textContent = POWER_CAP[kind] ? 'PWR' : 'BLD'
+    tag.textContent = roleTag
     btn.title = STRUCTURE_NAME[kind]
     const show = () => {
       if (!placing) info.textContent = describe(kind)
     }
     btn.addEventListener('mouseenter', show)
     btn.addEventListener('focus', show)
-    btn.addEventListener('click', () => bus.emit('intent:construct', { kind }))
-    tiles.set(kind, { btn, image })
+    btn.addEventListener('mouseleave', () => {
+      if (!placing) info.textContent = IDLE_HINT
+    })
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('locked')) return
+      bus.emit('intent:construct', { kind })
+    })
+    tiles.set(kind, { btn, image, tag, roleTag })
   }
 
   const offThumbs = bus.on('thumbnails', (t: ThumbnailSet) => {
@@ -89,12 +94,12 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     lastView = view
     playerId = view.playerId
     for (const kind of BUILDABLE) {
-      const build = STRUCTURE_BUILD[kind]!
       const tile = tiles.get(kind)!
-      tile.btn.disabled =
-        view.economy.lithiumKg < build.lithiumKg ||
-        view.economy.plasticKg < build.plasticKg ||
-        view.economy.credits < build.credits
+      const missing = shortfall(kind)
+      tile.btn.classList.toggle('locked', missing !== null)
+      tile.btn.setAttribute('aria-disabled', String(missing !== null))
+      tile.tag.textContent = missing ?? tile.roleTag
+      tile.tag.classList.toggle('warn', missing !== null)
     }
   })
 

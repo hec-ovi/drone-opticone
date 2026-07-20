@@ -94,8 +94,6 @@ const ORDERS: OrderDef[] = [
 
 export function commandCard(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const panel = el('section', 'panel command-card', root)
-  const heading = el('h2', '', panel)
-  heading.textContent = 'Orders'
   const tooltip = el('p', 'order-tooltip', panel)
   const grid = el('div', 'order-grid', panel)
 
@@ -115,8 +113,9 @@ export function commandCard(root: HTMLElement, bus: Bus<ClientTopics>): () => vo
     b.title = def.label
     b.disabled = true
     b.addEventListener('click', () => def.fire(bus))
-    b.addEventListener('mouseenter', () => (tooltip.textContent = `${def.label}. ${def.desc}`))
-    b.addEventListener('focus', () => (tooltip.textContent = `${def.label}. ${def.desc}`))
+    const show = () => (tooltip.textContent = `${def.label.toUpperCase()} · ${def.desc}`)
+    b.addEventListener('mouseenter', show)
+    b.addEventListener('focus', show)
     b.addEventListener('mouseleave', () => (tooltip.textContent = ''))
     slots.push(b)
   }

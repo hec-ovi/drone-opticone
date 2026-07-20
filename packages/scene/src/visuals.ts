@@ -44,6 +44,8 @@ export function structureColor(kind: StructureKind, own: boolean): number {
       return 0x6bf2c8
     case 'power-plant':
       return 0x8de26b
+    case 'air-defense':
+      return 0xf28f6b
   }
 }
 

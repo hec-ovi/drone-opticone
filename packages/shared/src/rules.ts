@@ -20,6 +20,7 @@ export const STRUCTURE_BUILD: Partial<Record<StructureKind, StructureBuild>> = {
   factory: { lithiumKg: 10, plasticKg: 60, credits: 1200, timeS: 60 },
   relay: { lithiumKg: 5, plasticKg: 15, credits: 250, timeS: 15 },
   'satellite-uplink': { lithiumKg: 20, plasticKg: 30, credits: 700, timeS: 40 },
+  'air-defense': { lithiumKg: 15, plasticKg: 40, credits: 800, timeS: 35 },
 }
 
 /**
@@ -33,6 +34,7 @@ export const POWER_USE: Partial<Record<StructureKind, number>> = {
   refinery: 25,
   'satellite-uplink': 20,
   relay: 10,
+  'air-defense': 15,
 }
 
 export interface PowerStatus {

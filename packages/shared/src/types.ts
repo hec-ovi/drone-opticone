@@ -33,7 +33,14 @@ export interface DroneSpec {
   sourceUrl: string
 }
 
-export type StructureKind = 'centcomm' | 'refinery' | 'factory' | 'relay' | 'satellite-uplink' | 'power-plant'
+export type StructureKind =
+  | 'centcomm'
+  | 'refinery'
+  | 'factory'
+  | 'relay'
+  | 'satellite-uplink'
+  | 'power-plant'
+  | 'air-defense'
 export type NodeKind = 'lithium' | 'oil'
 
 export type DroneMode = 'idle' | 'moving' | 'patrol' | 'attacking' | 'mining' | 'returning' | 'terminal'
@@ -71,6 +78,8 @@ export interface StructureState {
   hpMax: number
   /** set while under construction; the structure does nothing until this tick */
   readyAtTick?: number
+  /** air defense: next tick this battery may fire again */
+  cooldownUntilTick?: number
 }
 
 export interface ResourceNodeState {

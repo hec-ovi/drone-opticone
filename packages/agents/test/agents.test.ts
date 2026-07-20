@@ -131,3 +131,10 @@ describe('C-07 overlord construction', () => {
     expect(again.some((c) => c.type === 'construct')).toBe(false)
   })
 })
+
+describe('C-07 overlord defense', () => {
+  it('adds a missile defense battery once the economy stands', () => {
+    const cmd = overlordAct(snapshot(calm(), 'bot'), 'normal').find((c) => c.type === 'construct')
+    expect(cmd).toMatchObject({ type: 'construct', kind: 'air-defense' })
+  })
+})

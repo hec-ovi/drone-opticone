@@ -6,7 +6,6 @@ import { selectionPanel } from './panels/plate'
 import { commandCard } from './panels/orders'
 import { buildMenu } from './panels/factory'
 import { constructionMenu } from './panels/centcom'
-import { eventLog } from './panels/log'
 import { matchBanner, menuOverlay } from './panels/overlays'
 
 /**
@@ -30,7 +29,6 @@ export function mountUI(root: HTMLElement, bus: Bus<ClientTopics>): UIHandle {
     commandCard(main, bus),
     buildMenu(main, bus),
     constructionMenu(main, bus),
-    eventLog(main, bus),
     matchBanner(root, bus),
     menuOverlay(root, bus),
   ]

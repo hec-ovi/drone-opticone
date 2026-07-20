@@ -429,6 +429,56 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
   }
 }
 
+/**
+ * Air defense batteries: while powered, each one takes a hitscan shot every
+ * cooldown at the closest threat in range, incoming munitions before
+ * airframes. Missile defense first, area denial second.
+ */
+function updateAirDefense(s: MatchState, lowPower: Map<string, boolean>, events: SimEvent[]): void {
+  const AD = TUNING.airDefense
+  const intercepted = new Set<string>()
+  for (const st of s.structures) {
+    if (st.kind !== 'air-defense' || st.hp <= 0 || !structureActive(s.tick, st)) continue
+    if (lowPower.get(st.playerId)) continue
+    if ((st.cooldownUntilTick ?? 0) > s.tick) continue
+
+    let bestProjectile: MatchState['projectiles'][number] | undefined
+    let bestD = AD.rangeM
+    for (const p of s.projectiles) {
+      if (p.playerId === st.playerId || intercepted.has(p.id)) continue
+      const d = dist3D(p.pos, st.pos)
+      if (d <= bestD) {
+        bestD = d
+        bestProjectile = p
+      }
+    }
+    if (bestProjectile) {
+      intercepted.add(bestProjectile.id)
+      st.cooldownUntilTick = s.tick + Math.round(AD.cooldownS / DT)
+      continue
+    }
+
+    let bestDrone: DroneState | undefined
+    bestD = AD.rangeM
+    for (const d of s.drones) {
+      if (d.playerId === st.playerId || d.hp <= 0) continue
+      const dd = dist3D(d.pos, st.pos)
+      if (dd <= bestD) {
+        bestD = dd
+        bestDrone = d
+      }
+    }
+    if (bestDrone) {
+      bestDrone.hp -= AD.damage
+      if (bestDrone.hp <= 0) {
+        events.push({ type: 'destroyed', entityId: bestDrone.id, playerId: bestDrone.playerId, cause: 'munition' })
+      }
+      st.cooldownUntilTick = s.tick + Math.round(AD.cooldownS / DT)
+    }
+  }
+  if (intercepted.size > 0) s.projectiles = s.projectiles.filter((p) => !intercepted.has(p.id))
+}
+
 function updateProjectiles(s: MatchState, events: SimEvent[]): void {
   const alive: MatchState['projectiles'] = []
   for (const p of s.projectiles) {
@@ -502,7 +552,7 @@ function markCircle(fog: number[], mapSizeM: number, cx: number, cz: number, rad
   return newlyExplored
 }
 
-function updateFog(s: MatchState, events: SimEvent[]): void {
+function updateFog(s: MatchState, events: SimEvent[], lowPower: Map<string, boolean>): void {
   for (const player of s.players) {
     const fog = s.fog[player.id]!
     for (let i = 0; i < fog.length; i++) {
@@ -515,7 +565,9 @@ function updateFog(s: MatchState, events: SimEvent[]): void {
     }
     for (const st of s.structures) {
       if (st.playerId !== player.id || st.hp <= 0) continue
-      newCells += markCircle(fog, s.mapSizeM, st.pos.x, st.pos.z, TUNING.structureSightM)
+      // A powered air-defense battery is also a long-range detector.
+      const radar = st.kind === 'air-defense' && structureActive(s.tick, st) && !lowPower.get(player.id)
+      newCells += markCircle(fog, s.mapSizeM, st.pos.x, st.pos.z, radar ? TUNING.airDefense.sightM : TUNING.structureSightM)
     }
     for (const sweep of player.satellite.sweeps) {
       newCells += markCircle(fog, s.mapSizeM, sweep.center.x, sweep.center.z, sweep.radius)
@@ -607,6 +659,7 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
   for (const d of s.drones) {
     if (d.hp > 0) updateDrone(s, d, events)
   }
+  updateAirDefense(s, lowPower, events)
   updateProjectiles(s, events)
   updateCollisions(s, events)
 
@@ -643,7 +696,7 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
     player.satellite.sweeps = player.satellite.sweeps.filter((sw) => sw.untilTick > s.tick)
   }
 
-  updateFog(s, events)
+  updateFog(s, events, lowPower)
 
   // Win condition: enemy centcomm destroyed.
   for (const player of s.players) {

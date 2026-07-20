@@ -68,6 +68,7 @@ export function overlordAct(view: PlayerView, difficulty: Difficulty = 'normal')
     if (view.power.used > view.power.cap) construct('power-plant')
     else if (!factory) construct('factory')
     else if (!own('refinery')) construct('refinery')
+    else if (!own('air-defense')) construct('air-defense')
   }
 
   if (!factory) return commands

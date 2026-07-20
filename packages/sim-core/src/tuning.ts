@@ -10,7 +10,10 @@ export const TUNING = {
     relay: 800,
     'satellite-uplink': 1000,
     'power-plant': 1200,
+    'air-defense': 900,
   } satisfies Record<StructureKind, number>,
+  /** SAM battery: radar sight while powered, hitscan intercepts on a cooldown */
+  airDefense: { rangeM: 400, sightM: 800, cooldownS: 2.5, damage: 250 },
   structureRadiusM: 20,
   droneRadiusM: 2,
   droneHpBase: 20,

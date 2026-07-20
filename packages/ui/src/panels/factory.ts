@@ -4,41 +4,46 @@ import { button, el, fmt, img } from '../dom'
 import { displayBuildCost, displayBuildTimeS } from '../display'
 import { droneRole } from '../roles'
 
+/** The short reason a tile is locked: which resource is short. */
+function shortfall(eco: { lithiumKg: number; plasticKg: number; credits: number }, cost: { lithiumKg: number; plasticKg: number; credits: number }): string | null {
+  if (eco.lithiumKg < cost.lithiumKg) return 'NEED LITHIUM'
+  if (eco.plasticKg < cost.plasticKg) return 'NEED PLASTIC'
+  if (eco.credits < cost.credits) return 'NEED CREDITS'
+  return null
+}
+
 /**
  * Factory panel: square build tiles showing the rendered model of each
  * airframe (class silhouette until thumbnails arrive), role-colored frames,
  * a hover info strip with full specs and costs. Queued builds show as a
  * count badge on their tile plus a progress fill for the job on the line.
+ * A tile you cannot afford stays hoverable and says why on its bottom band.
  * Contextual like any RTS production building: it only appears while the
  * player's own factory is selected.
  */
 export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const panel = el('section', 'panel build-menu', root)
   panel.style.display = 'none'
-  const heading = el('h2', '', panel)
-  heading.textContent = 'Factory'
   const grid = el('div', 'build-grid', panel)
   const info = el('p', 'build-info-strip', panel)
-  info.textContent = 'Hover an airframe for specs. Click to build; click again to queue more.'
   const tiles = new Map<
     string,
-    { btn: HTMLButtonElement; image: HTMLImageElement; count: HTMLElement; progress: HTMLElement }
+    {
+      btn: HTMLButtonElement
+      image: HTMLImageElement
+      count: HTMLElement
+      progress: HTMLElement
+      tag: HTMLElement
+      roleTag: string
+    }
   >()
   let thumbs: ThumbnailSet | null = null
   let lastView: PlayerView | null = null
 
   const describe = (spec: DroneSpec, view: PlayerView): string => {
     const cost = displayBuildCost(spec)
-    const role = droneRole(spec)
-    const missing =
-      view.economy.lithiumKg < cost.lithiumKg
-        ? ' | NEED LITHIUM'
-        : view.economy.plasticKg < cost.plasticKg
-          ? ' | NEED PLASTIC'
-          : view.economy.credits < cost.credits
-            ? ' | NEED CREDITS'
-            : ''
-    return `${spec.name} | ${role.text} | ${fmt(cost.lithiumKg)} li + ${fmt(cost.plasticKg)} pl + ${fmt(cost.credits)} cr | ${displayBuildTimeS(spec)}s${missing}`
+    const missing = shortfall(view.economy, cost)
+    return `${spec.name} · ${fmt(cost.lithiumKg)} li + ${fmt(cost.plasticKg)} pl + ${fmt(cost.credits)} cr · ${displayBuildTimeS(spec)}s${missing ? ` · ${missing}` : ''}`
   }
 
   const offThumbs = bus.on('thumbnails', (t: ThumbnailSet) => {
@@ -78,15 +83,20 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         }
         btn.addEventListener('mouseenter', show)
         btn.addEventListener('focus', show)
-        btn.addEventListener('click', () => bus.emit('intent:build', { specId: spec.id }))
-        tile = { btn, image, count, progress }
+        btn.addEventListener('mouseleave', () => (info.textContent = ''))
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('locked')) return
+          bus.emit('intent:build', { specId: spec.id })
+        })
+        tile = { btn, image, count, progress, tag, roleTag: role.tag }
         tiles.set(spec.id, tile)
       }
-      const cost = displayBuildCost(spec)
-      tile.btn.disabled =
-        view.economy.lithiumKg < cost.lithiumKg ||
-        view.economy.plasticKg < cost.plasticKg ||
-        view.economy.credits < cost.credits
+      // Locked tiles stay hoverable and say why on their bottom band.
+      const missing = shortfall(view.economy, displayBuildCost(spec))
+      tile.btn.classList.toggle('locked', missing !== null)
+      tile.btn.setAttribute('aria-disabled', String(missing !== null))
+      tile.tag.textContent = missing ?? tile.roleTag
+      tile.tag.classList.toggle('warn', missing !== null)
     }
 
     // Queue on the tiles themselves: a count badge plus a progress fill for

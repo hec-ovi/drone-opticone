@@ -48,12 +48,14 @@ describe('C-05 minimap', () => {
     expect(focuses[0]!.x).toBeLessThanOrEqual(4000)
   })
 
-  it('the minimap has no standing sweep button; arming shows a status flash', () => {
-    expect(screen.queryByRole('button', { name: 'Satellite sweep' })).toBeNull()
+  it('the minimap is a pure map: no title, no status text, just the canvas', () => {
+    bus.emit('view', humanView())
     bus.emit('sweepModeChanged', true)
-    expect(document.querySelector('.sweep-state')!.textContent).toContain('SWEEP ARMED')
-    bus.emit('sweepModeChanged', false)
-    expect(document.querySelector('.sweep-state')!.textContent).toBe('')
+    const panel = document.querySelector('.minimap-panel') as HTMLElement
+    expect(panel.querySelector('h2')).toBeNull()
+    expect(panel.querySelector('.sweep-state')).toBeNull()
+    expect(panel.textContent).toBe('')
+    expect(panel.querySelector('canvas')).not.toBeNull()
   })
 })
 
@@ -279,14 +281,18 @@ describe('C-05 construction panel and power', () => {
     expect(panel.style.display).toBe('none')
   })
 
-  it('structure tiles disable when the bank cannot cover them', () => {
+  it('structure tiles lock with the reason on the band when the bank is short', () => {
     const view = humanView((v) => (v.economy.credits = 0))
     bus.emit('view', view)
     const cc = view.structures.find((st) => st.kind === 'centcomm' && st.playerId === 'human')!
     bus.emit('selection', { drones: [], structures: [cc], nodes: [] })
-    expect(screen.getByRole('button', { name: 'Construct Factory' })).toBeDisabled()
+    const tile = () => screen.getByRole('button', { name: 'Construct Factory' })
+    expect(tile().getAttribute('aria-disabled')).toBe('true')
+    expect(tile().querySelector('.tile-tag')!.textContent).toBe('NEED CREDITS')
     bus.emit('view', humanView())
-    expect(screen.getByRole('button', { name: 'Construct Factory' })).toBeEnabled()
+    expect(tile().getAttribute('aria-disabled')).toBe('false')
+    // The missile defense battery is on the construction card too.
+    expect(screen.getByRole('button', { name: 'Construct Missile defense' })).toBeDefined()
   })
 
   it('the resource strip shows grid power and flags brownouts', () => {
