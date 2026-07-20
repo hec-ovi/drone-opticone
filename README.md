@@ -1,5 +1,7 @@
 # drone-opticone
 
+**Play it in the browser: <https://hec-ovi.github.io/drone-opticone/>** (static build, nothing to install).
+
 1v1 real-time strategy game with zero humans on the battlefield. Each player is an AI overlord (a CENTCOM base) that mines resources, builds drones from real-world specs, and fights with them. Think Warcraft 2 / StarCraft economy loop plus Command & Conquer satellite recon, but every unit is a real drone modeled 1:1: real weight, battery capacity, wind limits, ballistics, collision behavior.
 
 Core ideas:
@@ -32,6 +34,14 @@ npm install
 npm test          # 188 tests: determinism, physics, economy, construction, air defense, UI, e2e AI match
 npm run dev       # then open the printed URL, pick a difficulty, Deploy
 npm run build     # static bundle, CDN-ready
+```
+
+The published build lives on GitHub Pages (no CI): build locally and push the bundle to the `gh-pages` branch:
+
+```
+cd apps/client && npx vite build --base=/drone-opticone/
+cd dist && touch .nojekyll && git init -b gh-pages && git add -A \
+  && git commit -m "Deploy" && git push -f git@github.com:hec-ovi/drone-opticone.git gh-pages && rm -rf .git
 ```
 
 Controls: left-click selects units, buildings or resource nodes, drag for box select (shift adds), right-click move / attack / mine, right-drag pans (also WASD, arrows, the screen edge, or hold left+right and drag), middle-drag to rotate and tilt, wheel zoom. Shift+1..9 stores a control group, 1..9 recalls it, double tap centers the camera on it. On the minimap: left-click or drag moves the camera, right-click sends the selected drones there. Edge pan also works across the console: push the cursor to the physical screen edge (12 px strip) and the map keeps scrolling. Satellite sweep is an order on the selected uplink; construction tiles live on the selected CENTCOM (click a tile, then click the field; right-click or Esc cancels). URL params `?seed=123&difficulty=easy|normal|hard` prefill the menu.
