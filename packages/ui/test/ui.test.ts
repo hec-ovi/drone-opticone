@@ -93,6 +93,17 @@ describe('C-05 UI panels', () => {
     // Sticky card: leaving the tile keeps the last unit's info in place.
     await user.unhover(fpv)
     expect(panel.querySelector('.bc-name')!.textContent).toContain('FPV strike')
+
+    // The tile itself carries a cursor tooltip with name and role.
+    await user.hover(fpv)
+    const tip = () => document.querySelector('.cursor-tip') as HTMLElement
+    expect(tip().textContent).toContain('FPV strike quad')
+    expect(tip().textContent).toContain('kamikaze')
+
+    // And each cost chip explains its resource with have/need numbers.
+    await user.hover(panel.querySelector('.bc-cost') as HTMLElement)
+    expect(tip().textContent).toContain('LITHIUM · needs')
+    expect(tip().textContent).toContain('crystal nodes')
   })
 
   it('the info card is filled from the start: first airframe before any hover', () => {

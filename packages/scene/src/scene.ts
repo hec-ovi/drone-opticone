@@ -124,15 +124,18 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     transparent: true,
     opacity: 0.85,
     depthWrite: false,
+    depthTest: false,
   })
   const hoverBracketMat = hoverMat.clone()
   hoverBracketMat.opacity = 0.45
   const hoverRing = new THREE.Group()
   const hoverInner = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 40), hoverMat)
   hoverInner.rotation.x = -Math.PI / 2
+  hoverInner.renderOrder = 12
   hoverRing.add(hoverInner)
   const hoverBrackets = new THREE.Mesh(new THREE.RingGeometry(1.14, 1.28, 4), hoverBracketMat)
   hoverBrackets.rotation.x = -Math.PI / 2
+  hoverBrackets.renderOrder = 12
   hoverRing.add(hoverBrackets)
   hoverRing.visible = false
   scene.add(hoverRing)
@@ -167,9 +170,11 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       transparent: true,
       opacity: 0.35,
       depthWrite: false,
+      depthTest: false,
     }),
   )
   rangeRing.rotation.x = -Math.PI / 2
+  rangeRing.renderOrder = 11
   rangeRing.visible = false
   scene.add(rangeRing)
 
@@ -502,12 +507,15 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
           transparent: true,
           opacity: 0.75,
           depthWrite: false,
+          depthTest: false,
         })
         const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 0.98, 36), mat)
         ring.rotation.x = -Math.PI / 2
+        ring.renderOrder = 12
         g.add(ring)
         const brackets = new THREE.Mesh(new THREE.RingGeometry(1.12, 1.3, 4), mat)
         brackets.rotation.x = -Math.PI / 2
+        brackets.renderOrder = 12
         g.userData.spinner = brackets
         g.add(brackets)
         g.scale.setScalar(m.r)
@@ -533,9 +541,11 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
             transparent: true,
             opacity: 0.9,
             depthWrite: false,
+            depthTest: false,
           }),
         )
         inner.rotation.x = -Math.PI / 2
+        inner.renderOrder = 12
         g.add(inner)
         const outer = new THREE.Mesh(
           new THREE.RingGeometry(size * 1.18, size * 1.3, 6),
@@ -545,9 +555,11 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
             transparent: true,
             opacity: 0.45,
             depthWrite: false,
+            depthTest: false,
           }),
         )
         outer.rotation.x = -Math.PI / 2
+        outer.renderOrder = 12
         g.userData.spinner = outer
         g.add(outer)
         return g

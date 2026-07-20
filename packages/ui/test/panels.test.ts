@@ -441,6 +441,26 @@ describe('C-05 live plate: activity color, status and target', () => {
     expect(target.querySelector('.icon')).not.toBeNull()
   })
 
+  it('uncontrolled drones say why: STORM DRIFT in a gale, NO LINK out of range', () => {
+    const stormView = humanView((v) => {
+      v.wind.speedMps = 14 // over the ore miner's 10 m/s limit
+      const m = v.ownDrones.find((d) => v.catalog[d.specId]?.class === 'mining')!
+      m.uncontrolled = true
+    })
+    bus.emit('view', stormView)
+    const miner = stormView.ownDrones.find((d) => stormView.catalog[d.specId]?.class === 'mining')!
+    bus.emit('selection', { drones: [miner], structures: [], nodes: [] })
+    expect(document.querySelector('.tag-warn')!.textContent).toContain('STORM DRIFT')
+
+    const calmView = humanView((v) => {
+      v.wind.speedMps = 2
+      const m = v.ownDrones.find((d) => v.catalog[d.specId]?.class === 'mining')!
+      m.uncontrolled = true
+    })
+    bus.emit('view', calmView)
+    expect(document.querySelector('.tag-warn')!.textContent).toContain('NO LINK')
+  })
+
   it('an air-defense battery reports its missile rack', () => {
     const view = humanView((v) => {
       v.structures.push({

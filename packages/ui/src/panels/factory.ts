@@ -4,6 +4,7 @@ import { button, el, img } from '../dom'
 import { buildInfoCard, type CardData } from '../build-card'
 import { displayBuildCost, displayBuildTimeS } from '../display'
 import { droneRole } from '../roles'
+import { attachTooltip } from '../tooltip'
 
 /** The short reason a tile is locked: which resource is short. */
 function shortfall(eco: { lithiumKg: number; plasticKg: number; credits: number }, cost: { lithiumKg: number; plasticKg: number; credits: number }): string | null {
@@ -50,14 +51,32 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
       name: spec.name,
       desc: droneRole(spec).text,
       costs: [
-        { icon: ICONS.lithium, need: cost.lithiumKg, have: view.economy.lithiumKg },
-        { icon: ICONS.plastic, need: cost.plasticKg, have: view.economy.plasticKg },
-        { icon: ICONS.credits, need: cost.credits, have: view.economy.credits },
+        {
+          icon: ICONS.lithium,
+          label: 'Lithium',
+          need: cost.lithiumKg,
+          have: view.economy.lithiumKg,
+          hint: 'Miners harvest it from crystal nodes.',
+        },
+        {
+          icon: ICONS.plastic,
+          label: 'Plastic',
+          need: cost.plasticKg,
+          have: view.economy.plasticKg,
+          hint: 'The refinery cracks it from stored oil.',
+        },
+        {
+          icon: ICONS.credits,
+          label: 'Credits',
+          need: cost.credits,
+          have: view.economy.credits,
+          hint: 'Credits do not regenerate.',
+        },
       ],
       timeS: displayBuildTimeS(spec),
       deps: [
-        { icon: ICONS.factory, title: 'Built at the Factory' },
-        { icon: ICONS.power, title: 'The factory line needs grid power' },
+        { icon: ICONS.factory, title: 'Built at the Factory.' },
+        { icon: ICONS.power, title: 'The factory line needs grid power.' },
       ],
     }
   }
@@ -99,6 +118,10 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         }
         btn.addEventListener('mouseenter', show)
         btn.addEventListener('focus', show)
+        attachTooltip(btn, () => {
+          const missing = lastView ? shortfall(lastView.economy, displayBuildCost(spec)) : null
+          return `${spec.name} · ${role.text}${missing ? ` · ${missing}` : ''}`
+        })
         btn.addEventListener('click', () => {
           if (btn.classList.contains('locked')) return
           bus.emit('intent:build', { specId: spec.id })

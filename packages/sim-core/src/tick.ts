@@ -374,10 +374,15 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
           stepToward2D(d.pos, home.pos, sp.cruiseMps * DT, TUNING.depositRangeM / 2)
         } else if (d.cargoKg > 0 && d.cargoKind) {
           const player = s.players.find((p) => p.id === d.playerId)!
+          // The CENTCOM pays market value on delivery: ore is the credit income.
+          const payout = d.cargoKg * TUNING.creditPerKg[d.cargoKind]
           const delta =
-            d.cargoKind === 'lithium' ? { lithiumKg: d.cargoKg } : { oilKg: d.cargoKg }
+            d.cargoKind === 'lithium'
+              ? { lithiumKg: d.cargoKg, credits: payout }
+              : { oilKg: d.cargoKg, credits: payout }
           if (d.cargoKind === 'lithium') player.economy.lithiumKg += d.cargoKg
           else player.economy.oilKg += d.cargoKg
+          player.economy.credits += payout
           events.push({ type: 'resourceDelta', playerId: d.playerId, delta })
           d.cargoKg = 0
           d.cargoKind = null

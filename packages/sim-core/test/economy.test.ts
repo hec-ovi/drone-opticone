@@ -65,3 +65,20 @@ describe('C-03 economy', () => {
     expect(s.players[0]!.economy.plasticKg).toBeCloseTo(plastic0 + 1, 1)
   })
 })
+
+describe('C-03 credit income', () => {
+  it('ore deposits pay market credits: 2/kg lithium', () => {
+    let s = calm()
+    const miner = s.drones.find((d) => d.playerId === 'alpha' && d.specId === 'ore-miner')!
+    const base = s.structures.find((st) => st.playerId === 'alpha' && st.kind === 'centcomm')!
+    miner.pos = { x: base.pos.x + 30, y: 30, z: base.pos.z }
+    miner.cargoKg = 20
+    miner.cargoKind = 'lithium'
+    miner.mode = 'returning'
+    const credits0 = s.players[0]!.economy.credits
+    const lithium0 = s.players[0]!.economy.lithiumKg
+    for (let t = 0; t < 10 * 20 && s.players[0]!.economy.credits === credits0; t++) s = tick(s, []).state
+    expect(s.players[0]!.economy.lithiumKg).toBeCloseTo(lithium0 + 20)
+    expect(s.players[0]!.economy.credits).toBeCloseTo(credits0 + 40)
+  })
+})

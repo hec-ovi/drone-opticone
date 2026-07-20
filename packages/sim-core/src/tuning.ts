@@ -67,6 +67,8 @@ export const TUNING = {
   miningRangeM: 40,
   depositRangeM: 60,
   miningRateKgPerS: 1,
+  /** market value paid out when a miner deposits its hold */
+  creditPerKg: { lithium: 2, oil: 1 } satisfies Record<'lithium' | 'oil', number>,
   refineryOilKgPerS: 1,
   plasticPerOilKg: 0.5,
   startEconomy: { credits: 5000, lithiumKg: 50, oilKg: 0, plasticKg: 100 },

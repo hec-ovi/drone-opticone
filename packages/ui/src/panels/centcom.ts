@@ -14,6 +14,7 @@ import { ICONS } from '../icons'
 import { buildInfoCard, type CardData } from '../build-card'
 import { STRUCTURE_DESC, STRUCTURE_NAME } from '../display'
 import { structurePortraitSvg } from '../portraits'
+import { attachTooltip } from '../tooltip'
 
 const BUILDABLE = Object.keys(STRUCTURE_BUILD) as StructureKind[]
 
@@ -47,19 +48,45 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     const build = STRUCTURE_BUILD[kind]!
     const draw = POWER_USE[kind]
     const costs: CardData['costs'] = [
-      { icon: ICONS.lithium, need: build.lithiumKg, have: view.economy.lithiumKg },
-      { icon: ICONS.plastic, need: build.plasticKg, have: view.economy.plasticKg },
-      { icon: ICONS.credits, need: build.credits, have: view.economy.credits },
+      {
+        icon: ICONS.lithium,
+        label: 'Lithium',
+        need: build.lithiumKg,
+        have: view.economy.lithiumKg,
+        hint: 'Miners harvest it from crystal nodes.',
+      },
+      {
+        icon: ICONS.plastic,
+        label: 'Plastic',
+        need: build.plasticKg,
+        have: view.economy.plasticKg,
+        hint: 'The refinery cracks it from stored oil.',
+      },
+      {
+        icon: ICONS.credits,
+        label: 'Credits',
+        need: build.credits,
+        have: view.economy.credits,
+        hint: 'Earned when miners deposit ore.',
+      },
     ]
     // Consumers show their power draw against the grid headroom.
-    if (draw) costs.push({ icon: ICONS.power, need: draw, have: Math.max(0, view.power.cap - view.power.used) })
+    if (draw) {
+      costs.push({
+        icon: ICONS.power,
+        label: 'Power',
+        need: draw,
+        have: Math.max(0, view.power.cap - view.power.used),
+        hint: 'Power plants raise the cap.',
+      })
+    }
     return {
       name: STRUCTURE_NAME[kind],
       desc: STRUCTURE_DESC[kind],
       costs,
       timeS: build.timeS,
       bonus: POWER_CAP[kind] ? `+${POWER_CAP[kind]} power` : undefined,
-      deps: [{ icon: ICONS.base, title: 'Placed from the CENTCOM' }],
+      deps: [{ icon: ICONS.base, title: 'Placed from the CENTCOM.' }],
     }
   }
 
@@ -83,6 +110,10 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     }
     btn.addEventListener('mouseenter', show)
     btn.addEventListener('focus', show)
+    attachTooltip(btn, () => {
+      const missing = shortfall(kind)
+      return `${STRUCTURE_NAME[kind]} · ${STRUCTURE_DESC[kind]}${missing ? ` · ${missing}` : ''}`
+    })
     btn.addEventListener('click', () => {
       if (btn.classList.contains('locked')) return
       bus.emit('intent:construct', { kind })

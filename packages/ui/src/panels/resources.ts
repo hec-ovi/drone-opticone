@@ -26,7 +26,7 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
   }
   const credits = chip(ICONS.credits, 'res-credits', () => {
     const low = (lastView?.economy.credits ?? Infinity) < 500
-    return `CREDITS · Pays for drones, structures and missile reloads.${low ? ' LOW: credits do not regenerate, spend them where it counts.' : ''}`
+    return `CREDITS · Earned when miners deposit ore (2 cr/kg lithium, 1 cr/kg oil). Pays for drones, structures and missile reloads.${low ? ' LOW: keep miners hauling.' : ''}`
   })
   const lithium = chip(ICONS.lithium, 'res-lithium', () => {
     const low = (lastView?.economy.lithiumKg ?? Infinity) < 20

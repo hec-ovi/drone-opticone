@@ -11,6 +11,7 @@ import {
 import { ICONS, droneClassIcon, iconEl } from '../icons'
 import { el, fmt, img } from '../dom'
 import { STRUCTURE_NAME } from '../display'
+import { attachTooltip } from '../tooltip'
 import { droneRole } from '../roles'
 import { nodePortraitEl, portraitEl, structurePortraitEl } from '../portraits'
 
@@ -69,9 +70,19 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
       sel.nodes.map((n) => [n.id, Math.round(n.remainingKg / 20)]),
     ])
 
-  // Status rows (refinery pipeline) also depend on the grid and oil store.
-  const viewFlags = () =>
-    lastView ? `${lastView.power.used > lastView.power.cap}|${lastView.economy.oilKg > 0.01}` : ''
+  // Status rows also depend on view state outside the selection: the grid,
+  // the oil store, and whether the wind is over each selected airframe's
+  // limit (storm drift vs broken link).
+  const viewFlags = () => {
+    if (!lastView) return ''
+    const storm = lastSel.drones
+      .map((d) => {
+        const spec = catalog[d.specId]
+        return spec ? lastView!.wind.speedMps > spec.windLimitMps : false
+      })
+      .join(',')
+    return `${lastView.power.used > lastView.power.cap}|${lastView.economy.oilKg > 0.01}|${storm}`
+  }
   let renderedFlags = ''
 
   const offView = bus.on('view', (view: PlayerView) => {
@@ -220,9 +231,17 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
           pol.textContent = primary.policy.kind
         }
         if (primary.uncontrolled) {
+          // Two different problems share the flag: storm drift (wind over
+          // the airframe's limit) and a broken control link (out of range).
+          const storm = lastView !== null && spec !== undefined && lastView.wind.speedMps > spec.windLimitMps
           const warn = el('span', 'tag tag-warn', sub)
           warn.appendChild(iconEl(ICONS.nolink, 'icon icon-s'))
-          warn.appendChild(document.createTextNode('NO LINK'))
+          warn.appendChild(document.createTextNode(storm ? 'STORM DRIFT' : 'NO LINK'))
+          attachTooltip(warn, () =>
+            storm
+              ? `Wind ${lastView!.wind.speedMps.toFixed(1)} m/s exceeds this airframe's ${spec!.windLimitMps} m/s limit: it drifts downwind and ignores every order until the gust passes.`
+              : 'Outside CENTCOM/relay control range: direct orders are ignored, standing policies keep working. Build a relay to extend the link.',
+          )
         }
         targetRow(primary)
       }
