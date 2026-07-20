@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import { Bus, type ClientTopics, type PlayerView, type PolicySpec } from '@opticone/shared'
-import { getCatalog, SEED_DRONES } from '@opticone/registry'
-import { createMatch, snapshot, tick } from '@opticone/sim-core'
+import { getCatalog, getDrone, SEED_DRONES } from '@opticone/registry'
+import { createMatch, makeDrone, snapshot, tick } from '@opticone/sim-core'
 import { mountUI, minimapToWorld, worldToMinimap, MINIMAP_SIZE, portraitSvg, droneRole } from '@opticone/ui'
 
 function humanView(mutate?: (v: PlayerView) => void): PlayerView {
@@ -57,7 +57,8 @@ describe('C-05 minimap', () => {
 describe('C-05 animated portraits', () => {
   it.each(SEED_DRONES.map((s) => [s.id, s] as const))('%s portrait has animated parts', (_id, spec) => {
     const svg = portraitSvg(spec)
-    expect(svg).toContain('p-rotor') // spinning rotor group
+    // Props spin or a jet plume burns; every portrait is alive.
+    expect(svg.includes('p-rotor') || svg.includes('p-flame')).toBe(true)
     expect(svg).toContain('p-led') // blinking nav light
     expect(svg).toContain('p-bob') // hover bob wrapper
   })
@@ -101,20 +102,38 @@ describe('C-05 command card', () => {
     mountUI(document.body, bus)
   })
 
-  it('order buttons stay disabled until something is selected', () => {
+  it('the order grid is a fixed 3x3 card; slots light up per unit type', () => {
+    bus.emit('view', humanView())
+    expect(document.querySelectorAll('.order-slot').length).toBe(9)
+
+    const stop = screen.getByRole('button', { name: 'Stop' })
     const kamikaze = screen.getByRole('button', { name: 'Kamikaze guard' })
-    expect(kamikaze).toBeDisabled()
+    const mine = screen.getByRole('button', { name: 'Mine nearest node' })
+    expect(stop).toBeDisabled()
+
+    // A miner enables Stop and Mine, but never the warhead orders.
     const view = humanView()
-    bus.emit('selection', { drones: [view.ownDrones[0]!], structures: [], nodes: [] })
-    expect(kamikaze).toBeEnabled()
-    bus.emit('selection', { drones: [], structures: [], nodes: [] })
+    const miner = view.ownDrones.find((d) => d.specId === 'ore-miner')!
+    bus.emit('selection', { drones: [miner], structures: [], nodes: [] })
+    expect(stop).toBeEnabled()
+    expect(mine).toBeEnabled()
     expect(kamikaze).toBeDisabled()
+
+    // A strike quad enables the warhead orders instead.
+    const fpv = makeDrone(getDrone('fpv-strike')!, 'human', { x: 700, y: 60, z: 700 }, 'fpv-x')
+    bus.emit('selection', { drones: [fpv], structures: [], nodes: [] })
+    expect(kamikaze).toBeEnabled()
+    expect(mine).toBeDisabled()
+
+    bus.emit('selection', { drones: [], structures: [], nodes: [] })
+    expect(stop).toBeDisabled()
   })
 
   it('policy buttons publish typed policy intents', async () => {
     const user = userEvent.setup()
-    const view = humanView()
-    bus.emit('selection', { drones: [view.ownDrones[0]!], structures: [], nodes: [] })
+    bus.emit('view', humanView())
+    const fpv = makeDrone(getDrone('fpv-strike')!, 'human', { x: 700, y: 60, z: 700 }, 'fpv-x')
+    bus.emit('selection', { drones: [fpv], structures: [], nodes: [] })
     const policies: (PolicySpec | null)[] = []
     bus.on('intent:policy', (p) => policies.push(p))
 
@@ -128,13 +147,22 @@ describe('C-05 command card', () => {
     ])
   })
 
-  it('self-destruct publishes its intent', async () => {
+  it('self-destruct publishes its intent, uplink selection arms the sweep', async () => {
     const user = userEvent.setup()
-    bus.emit('selection', { drones: [humanView().ownDrones[0]!], structures: [], nodes: [] })
+    const view = humanView()
+    bus.emit('view', view)
+    bus.emit('selection', { drones: [view.ownDrones[0]!], structures: [], nodes: [] })
     let destructs = 0
     bus.on('intent:selfDestruct', () => destructs++)
     await user.click(screen.getByRole('button', { name: 'Self-destruct' }))
     expect(destructs).toBe(1)
+
+    const uplink = view.structures.find((st) => st.kind === 'satellite-uplink')!
+    bus.emit('selection', { drones: [], structures: [uplink], nodes: [] })
+    const sweeps: boolean[] = []
+    bus.on('intent:sweepMode', (on) => sweeps.push(on))
+    await user.click(screen.getByRole('button', { name: 'Arm satellite sweep' }))
+    expect(sweeps).toEqual([true])
   })
 })
 
@@ -221,8 +249,8 @@ describe('C-05 structure and node selection', () => {
     const portrait = document.querySelector('.portrait') as HTMLElement
     expect(portrait.dataset.structure).toBe('centcomm')
     expect(portrait.querySelector('.p-rotor')).not.toBeNull() // radar sweep
-    expect(document.querySelector('.selection-detail')!.textContent).toContain('CENTCOM base')
-    expect(document.querySelector('.stat-value')!.textContent).toContain('hull 60%')
+    expect(document.querySelector('.plate-info')!.textContent).toContain('CENTCOM base')
+    expect(document.querySelector('.stat-value')!.textContent).toContain('3600/6000')
   })
 
   it('selecting a resource node shows its reserve', () => {
@@ -234,16 +262,17 @@ describe('C-05 structure and node selection', () => {
 
     const portrait = document.querySelector('.portrait') as HTMLElement
     expect(portrait.dataset.node).toBe('lithium')
-    expect(document.querySelector('.selection-detail')!.textContent).toContain('Lithium crystals')
+    expect(document.querySelector('.plate-info')!.textContent).toContain('Lithium crystals')
     expect(document.querySelector('.stat-value')!.textContent).toContain('750 kg left')
   })
 
-  it('orders stay disabled when only a building is selected', () => {
+  it('drone orders stay disabled when only a building is selected', () => {
     const view = humanView()
     bus.emit('view', view)
-    const base = view.structures[0]!
+    const base = view.structures.find((st) => st.kind === 'centcomm')!
     bus.emit('selection', { drones: [], structures: [base], nodes: [] })
     expect(screen.getByRole('button', { name: 'Kamikaze guard' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeDisabled()
   })
 })
 
@@ -251,24 +280,24 @@ describe('C-05 drone roles', () => {
   it('every seed drone has a role tag and a what-it-does line', () => {
     for (const spec of SEED_DRONES) {
       const role = droneRole(spec)
-      expect(['RECON', 'STRIKE', 'SIEGE', 'BOMBER', 'MINER', 'CARGO']).toContain(role.tag)
+      expect(['RECON', 'STRIKE', 'SIEGE', 'BOMBER', 'JET', 'MINER', 'CARGO']).toContain(role.tag)
       expect(role.text.length).toBeGreaterThan(15)
     }
   })
 
-  it('build cards show the role tag and description', () => {
+  it('build tiles show the role tag; description lives in the tooltip', () => {
     document.body.innerHTML = ''
     const bus = new Bus<ClientTopics>()
     mountUI(document.body, bus)
     bus.emit('view', humanView())
     const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
     expect(fpv.textContent).toContain('STRIKE')
-    expect(fpv.textContent).toContain('Cheap kamikaze')
+    expect(fpv.title).toContain('Cheap kamikaze')
     const miner = screen.getByRole('button', { name: /Build Ore miner/ })
     expect(miner.textContent).toContain('MINER')
   })
 
-  it('the selection panel explains what the selected unit does', () => {
+  it('the unit plate shows the role tag and numeric hull', () => {
     document.body.innerHTML = ''
     const bus = new Bus<ClientTopics>()
     mountUI(document.body, bus)
@@ -276,8 +305,52 @@ describe('C-05 drone roles', () => {
     bus.emit('view', view)
     const scout = view.ownDrones.find((d) => d.specId === 'mavic3')!
     bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
-    const detail = document.querySelector('.selection-detail')!
-    expect(detail.textContent).toContain('RECON')
-    expect(detail.textContent).toContain('reveals the fog')
+    const info = document.querySelector('.plate-info')!
+    expect(info.textContent).toContain('RECON')
+    expect(info.textContent).toMatch(/\d+\/\d+/)
+  })
+})
+
+describe('C-05 enemy intel and thumbnails', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('selecting an enemy drone shows a hostile intel plate, no orders', () => {
+    bus.emit('view', humanView())
+    const hostile = makeDrone(getDrone('fpv-strike')!, 'bot', { x: 2000, y: 60, z: 2000 }, 'foe-1')
+    hostile.hp = hostile.hpMax * 0.4
+    bus.emit('selection', { drones: [hostile], structures: [], nodes: [] })
+
+    const info = document.querySelector('.plate-info')!
+    expect(info.textContent).toContain('HOSTILE')
+    expect(info.textContent).toContain('FPV strike quad')
+    expect(info.textContent).toContain('STRIKE') // role intel stays visible
+    expect(info.textContent).not.toContain('battery') // no friendly telemetry
+    expect(document.querySelector('.plate')!.classList.contains('hostile')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeDisabled()
+  })
+
+  it('rendered thumbnails replace fallback icons on tiles and the plate', () => {
+    bus.emit('view', humanView())
+    const px =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+    bus.emit('thumbnails', {
+      drones: Object.fromEntries(SEED_DRONES.map((s) => [s.id, px])),
+      structures: { centcomm: px },
+      nodes: { lithium: px },
+    })
+    const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
+    const img = fpv.querySelector('img') as HTMLImageElement
+    expect(img.src).toContain('data:image/png')
+    expect(fpv.querySelector('.tile-fallback')).toBeNull()
+
+    const view = humanView()
+    bus.emit('selection', { drones: [view.ownDrones[0]!], structures: [], nodes: [] })
+    expect(document.querySelector('.portrait-img')).not.toBeNull()
   })
 })

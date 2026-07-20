@@ -66,27 +66,51 @@ export class GameShell {
       this.bus.on('intent:startMatch', ({ seed: s, difficulty: d }) => this.startMatch(s, d)),
       this.bus.on('intent:focus', ({ x, z }) => this.scene.focusAt(x, z)),
       this.bus.on('intent:policy', (policy) => {
-        if (this.selection.drones.length === 0) return
-        this.queued.push({
-          type: 'assignPolicy',
-          playerId: HUMAN,
-          droneIds: this.selection.drones.map((d) => d.id),
-          policy,
-        })
+        const ids = this.ownSelectedIds()
+        if (ids.length === 0) return
+        this.queued.push({ type: 'assignPolicy', playerId: HUMAN, droneIds: ids, policy })
         this.sound?.play('click')
       }),
       this.bus.on('intent:selfDestruct', () => {
-        if (this.selection.drones.length === 0) return
-        this.queued.push({
-          type: 'selfDestruct',
-          playerId: HUMAN,
-          droneIds: this.selection.drones.map((d) => d.id),
-        })
+        const ids = this.ownSelectedIds()
+        if (ids.length === 0) return
+        this.queued.push({ type: 'selfDestruct', playerId: HUMAN, droneIds: ids })
+      }),
+      this.bus.on('intent:stop', () => {
+        // Stop = fly to where you already are; the sim has no idle command.
+        for (const d of this.selection.drones.filter((dr) => dr.playerId === HUMAN)) {
+          this.queued.push({ type: 'move', playerId: HUMAN, droneIds: [d.id], to: { ...d.pos } })
+        }
+        this.sound?.play('click')
+      }),
+      this.bus.on('intent:mineNearest', () => {
+        const view = snapshot(this.state, HUMAN)
+        const miners = this.selection.drones.filter(
+          (d) =>
+            d.playerId === HUMAN && ['mining', 'cargo'].includes(view.catalog[d.specId]?.class ?? ''),
+        )
+        for (const m of miners) {
+          let best: (typeof view.nodes)[number] | undefined
+          let bestD = Infinity
+          for (const n of view.nodes) {
+            const dd = Math.hypot(n.pos.x - m.pos.x, n.pos.z - m.pos.z)
+            if (dd < bestD) {
+              bestD = dd
+              best = n
+            }
+          }
+          if (best) this.queued.push({ type: 'mine', playerId: HUMAN, droneIds: [m.id], nodeId: best.id })
+        }
+        this.sound?.play('click')
       }),
       this.bus.on('intent:mute', (muted) => {
         if (this.sound) this.sound.muted = muted
       }),
     )
+  }
+
+  private ownSelectedIds(): string[] {
+    return this.selection.drones.filter((d) => d.playerId === HUMAN).map((d) => d.id)
   }
 
   startMatch(seed: number, difficulty: Difficulty): void {

@@ -108,6 +108,19 @@ function tb2Portrait(): string {
   ${led(63, 98, '#57e389', 0.7)}`
 }
 
+function jetPortrait(): string {
+  return `
+  ${streams()}
+  <path d="M96 60 62 46 34 30l8 22-10 8 10 8-8 22 28-16Z" fill="${HULL_DARK}" stroke="${HULL}" stroke-width="1.6"/>
+  <path d="M96 60 62 52v16Z" fill="${HULL}" opacity="0.6"/>
+  <rect x="52" y="54" width="16" height="12" rx="3" fill="#14171b"/>
+  <path d="M40 42l-8-8M40 78l-8 8" stroke="${HULL_LIGHT}" stroke-width="3"/>
+  <g class="p-flame" style="transform-origin:30px 60px">
+    <path d="M30 54c-10 2-16 4-22 6 6 2 12 4 22 6 3-4 3-8 0-12Z" fill="#7ec8ff" opacity="0.8"/>
+  </g>
+  ${led(70, 60, 'var(--accent,#3ec6ff)', 0.2)}`
+}
+
 function cargoPortrait(): string {
   const arms = [
     [32, 32],
@@ -163,6 +176,8 @@ function artFor(spec: DroneSpec): string {
       return deltaPortrait()
     case 'tb2':
       return tb2Portrait()
+    case 'xq58-valkyrie':
+      return jetPortrait()
     case 'flycart30':
       return cargoPortrait()
     case 'ore-miner':
@@ -174,7 +189,7 @@ function artFor(spec: DroneSpec): string {
     case 'loitering-munition':
       return spec.massKg > 20 ? deltaPortrait() : switchbladePortrait()
     case 'fixed-wing':
-      return tb2Portrait()
+      return spec.cruiseMps > 90 ? jetPortrait() : tb2Portrait()
     case 'cargo':
       return cargoPortrait()
     case 'mining':

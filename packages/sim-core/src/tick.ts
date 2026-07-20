@@ -170,7 +170,8 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
           d.policy = cmd.policy ? structuredClone(cmd.policy) : null
           break
         case 'selfDestruct':
-          detonate(s, d, d.pos, spec(s, d).payloadKg, events, 'selfDestruct')
+          // Only warhead airframes detonate; a scuttled miner just drops.
+          detonate(s, d, d.pos, isKamikaze(sp) ? sp.payloadKg : 0, events, 'selfDestruct')
           break
       }
     }

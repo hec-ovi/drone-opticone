@@ -13,7 +13,8 @@ describe('C-04 drone models', () => {
     })
     // A real silhouette, not a single marker primitive.
     expect(meshCount).toBeGreaterThanOrEqual(8)
-    expect(model.spinners.length).toBeGreaterThanOrEqual(1)
+    // Props spin or a jet plume burns; every airframe has live propulsion.
+    expect(model.spinners.length >= 1 || model.thrust !== undefined).toBe(true)
   })
 
   it('rotors actually spin when animated', () => {

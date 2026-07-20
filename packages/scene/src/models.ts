@@ -24,6 +24,8 @@ export interface DroneModel {
   airframe: THREE.Group
   /** true for multirotors (bob + pitch), false for winged types (bank). */
   hovers: boolean
+  /** present on jet airframes: the animated exhaust plume */
+  thrust?: THREE.Sprite
   animate(dt: number, elapsed: number, opts: DroneAnimOpts): void
 }
 
@@ -88,6 +90,8 @@ interface Built {
   spinners: { node: THREE.Object3D; rate: number }[]
   /** multirotors bob and tilt into motion; winged types bank in turns */
   hovers: boolean
+  /** jet exhaust plume, pulsed by the animator instead of a spinner */
+  thrust?: THREE.Sprite
 }
 
 function buildQuad(accent: number, opts: { sleek: boolean }): Built {
@@ -257,6 +261,69 @@ function buildTb2(accent: number): Built {
   return { airframe, spinners, hovers: false }
 }
 
+function buildJet(accent: number): Built {
+  // V-shaped stealth jet, XQ-58 style: chined body blended into swept
+  // wings, canted V-tails, dorsal intake, turbofan plume instead of props.
+  const airframe = new THREE.Group()
+  const bodyMat = std(0x4b5158, { rough: 0.45, metal: 0.35, flat: true })
+  const darkMat = std(0x2c3036, { rough: 0.6, flat: true })
+
+  const planform = new THREE.Shape()
+  planform.moveTo(0.62, 0)
+  planform.lineTo(0.1, 0.16)
+  planform.lineTo(-0.28, 0.62)
+  planform.lineTo(-0.46, 0.58)
+  planform.lineTo(-0.3, 0.14)
+  planform.lineTo(-0.5, 0.1)
+  planform.lineTo(-0.5, -0.1)
+  planform.lineTo(-0.3, -0.14)
+  planform.lineTo(-0.46, -0.58)
+  planform.lineTo(-0.28, -0.62)
+  planform.lineTo(0.1, -0.16)
+  planform.closePath()
+  const wing = new THREE.Mesh(new THREE.ExtrudeGeometry(planform, { depth: 0.07, bevelEnabled: false }), bodyMat)
+  wing.rotation.x = Math.PI / 2
+  wing.position.y = 0.035
+  airframe.add(wing)
+
+  // Chined nose and dorsal intake hump.
+  const nose = box(0.34, 0.09, 0.18, bodyMat)
+  nose.position.set(0.42, 0.02, 0)
+  nose.rotation.z = -0.06
+  airframe.add(nose)
+  const hump = box(0.4, 0.09, 0.16, darkMat)
+  hump.position.set(-0.05, 0.09, 0)
+  airframe.add(hump)
+  const intake = box(0.1, 0.05, 0.12, std(0x14171b, { rough: 0.9 }))
+  intake.position.set(0.16, 0.1, 0)
+  airframe.add(intake)
+
+  // Canted V-tails.
+  for (const side of [1, -1]) {
+    const tail = box(0.2, 0.02, 0.26, bodyMat)
+    tail.position.set(-0.44, 0.12, side * 0.16)
+    tail.rotation.x = side * 0.7
+    airframe.add(tail)
+  }
+  const stripe = box(0.24, 0.02, 0.3, std(accent, { emissive: accent }))
+  stripe.position.set(-0.12, 0.075, 0)
+  airframe.add(stripe)
+
+  // Turbofan nozzle and plume.
+  const nozzle = cyl(0.05, 0.065, 0.1, 10, darkMat)
+  nozzle.rotation.z = Math.PI / 2
+  nozzle.position.set(-0.52, 0.05, 0)
+  airframe.add(nozzle)
+  const thrust = new THREE.Sprite(
+    new THREE.SpriteMaterial({ color: 0x7ec8ff, transparent: true, opacity: 0.75, depthWrite: false }),
+  )
+  thrust.scale.set(0.34, 0.12, 1)
+  thrust.position.set(-0.68, 0.05, 0)
+  airframe.add(thrust)
+
+  return { airframe, spinners: [], hovers: false, thrust }
+}
+
 function buildCargoLifter(accent: number): Built {
   const airframe = new THREE.Group()
   const spinners: Built['spinners'] = []
@@ -376,6 +443,8 @@ function buildFor(spec: DroneSpec, accent: number): Built {
       return buildDeltaWing(accent)
     case 'tb2':
       return buildTb2(accent)
+    case 'xq58-valkyrie':
+      return buildJet(accent)
     case 'flycart30':
       return buildCargoLifter(accent)
     case 'ore-miner':
@@ -388,7 +457,7 @@ function buildFor(spec: DroneSpec, accent: number): Built {
     case 'loitering-munition':
       return spec.massKg > 20 ? buildDeltaWing(accent) : buildSwitchblade(accent)
     case 'fixed-wing':
-      return buildTb2(accent)
+      return spec.cruiseMps > 90 ? buildJet(accent) : buildTb2(accent)
     case 'cargo':
       return buildCargoLifter(accent)
     case 'mining':
@@ -411,8 +480,15 @@ export function makeDroneModel(spec: DroneSpec, own: boolean): DroneModel {
     spinners: built.spinners,
     airframe: built.airframe,
     hovers: built.hovers,
+    thrust: built.thrust,
     animate(dt, elapsed, opts) {
       for (const s of built.spinners) s.node.rotation.y += s.rate * dt
+      if (built.thrust) {
+        const surge = opts.moving ? 1.35 : 1
+        const flicker = 1 + Math.sin(elapsed * 31 + phase) * 0.18
+        built.thrust.scale.set(0.34 * surge * flicker, 0.12 * flicker, 1)
+        ;(built.thrust.material as THREE.SpriteMaterial).opacity = 0.45 + surge * 0.22
+      }
       if (built.hovers) {
         built.airframe.position.y = Math.sin(elapsed * 2.2 + phase) * 0.035
         // Multirotors nose down into forward flight.

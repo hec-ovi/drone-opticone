@@ -6,7 +6,7 @@ import type { DroneSpec } from '@opticone/shared'
  * kg for kamikazes, 1500 per guided bomb) at display level only.
  */
 
-export type RoleTag = 'RECON' | 'STRIKE' | 'SIEGE' | 'BOMBER' | 'MINER' | 'CARGO'
+export type RoleTag = 'RECON' | 'STRIKE' | 'SIEGE' | 'BOMBER' | 'JET' | 'MINER' | 'CARGO'
 
 export interface DroneRole {
   tag: RoleTag
@@ -25,6 +25,8 @@ export function droneRole(spec: DroneSpec): DroneRole {
       return { tag: 'SIEGE', text: 'Heavy delta wing. One hit levels any building (24k damage).' }
     case 'tb2':
       return { tag: 'BOMBER', text: 'Drops up to 6 guided bombs (1.5k damage) from 1.5 km out.' }
+    case 'xq58-valkyrie':
+      return { tag: 'JET', text: 'Turbofan strike wing. 247 m/s dash, drops a full bay of guided bombs.' }
     case 'flycart30':
       return { tag: 'CARGO', text: 'Hauls 30 kg ore loads from nodes to base. Unarmed.' }
     case 'ore-miner':
@@ -39,6 +41,9 @@ export function droneRole(spec: DroneSpec): DroneRole {
     case 'loitering-munition':
       return { tag: 'STRIKE', text: `Loitering munition, ${Math.round(spec.payloadKg * 600)} damage on impact.` }
     case 'fixed-wing':
+      if (spec.cruiseMps > 90) {
+        return { tag: 'JET', text: 'Jet-powered strike wing. Fast standoff bombing runs.' }
+      }
       return spec.payloadKg > 0
         ? { tag: 'BOMBER', text: 'Fixed wing. Drops guided bombs from standoff range.' }
         : { tag: 'RECON', text: 'Long-endurance fixed-wing scout.' }

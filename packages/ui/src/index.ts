@@ -1,5 +1,7 @@
-export { mountUI, type UIHandle, displayBuildCost, displayBuildTimeS } from './ui'
+export { mountUI, type UIHandle } from './ui'
+export { displayBuildCost, displayBuildTimeS, isWarhead, STRUCTURE_NAME } from './display'
 export { ICONS, droneClassIcon, iconEl } from './icons'
+export { ORDER_ICONS } from './order-icons'
 export {
   portraitEl,
   portraitSvg,

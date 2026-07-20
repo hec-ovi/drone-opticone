@@ -131,6 +131,7 @@ The three.js view of a `PlayerView`. Renders, and captures raw input into `Comma
 - `SceneHandle.applyView(PlayerView)` : idempotent, interpolates between snapshots.
 - `SceneHandle.onCommand(cb)` : emits `Command[]` from user input.
 - `SceneHandle.setOverlay(fogTexture | satelliteSweepArea)` for C-05 driven modes.
+- `generateThumbnails(catalog) -> ThumbnailSet` : renders every model once with a fixed studio rig and returns data URLs. The app shell publishes them on the bus; C-05 consumes plain image URLs and never touches three.js.
 
 **Must not:** mutate game state, know rules (it cannot tell a legal move from an illegal one), talk to the network, own any UI chrome (menus, HUD text are C-05).
 
@@ -194,9 +195,11 @@ Who the player is and what they own. Serverless functions plus a tiny database (
 
 ## C-09 Store / Marketplace
 
-Upload, list, browse, buy. The pipeline for a user drone: spec sheet -> C-01 `validateSpec` -> assets -> C-02 validation -> listing pending -> moderation flag -> live.
+Upload, list, browse, buy. A global marketplace for drones, structures and future item kinds. The pipeline for a user drone: spec sheet -> C-01 `validateSpec` -> assets -> C-02 validation -> listing pending -> moderation flag -> live.
 
-**Owns:** listings, search and filters (class, mass, endurance, price), moderation queue, sales records, creator attribution and royalty split on each sale.
+**Acquisition rule:** units are earned by winning battles, not only bought. C-11 signed match results grant the winner units (or unit unlock tokens) into the C-08 hangar; the marketplace is where earned or created units are then traded between players.
+
+**Owns:** listings, search and filters (class, mass, endurance, price), moderation queue, sales records, creator attribution and royalty split on each sale, battle-reward grant records (fed by C-11 signed results).
 
 **Exposes:** `POST /listings` (spec + assetBundle), `GET /listings?query`, `POST /listings/{id}/buy` (orchestrates: C-10 debit, C-08 hangar credit, sale record).
 

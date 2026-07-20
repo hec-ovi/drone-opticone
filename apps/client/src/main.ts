@@ -3,7 +3,8 @@ import '@fontsource/rajdhani/600.css'
 import '@fontsource/rajdhani/700.css'
 import '@fontsource/share-tech-mono'
 import { Bus, SIM_SPEED, TICK_RATE, type ClientTopics } from '@opticone/shared'
-import { mountScene } from '@opticone/scene'
+import { generateThumbnails, mountScene } from '@opticone/scene'
+import { getCatalog } from '@opticone/registry'
 import { mountUI } from '@opticone/ui'
 import { GameShell } from './shell'
 import { SoundEngine } from './sound'
@@ -29,6 +30,9 @@ async function boot(): Promise<void> {
   // Terrain and base visible behind the start menu; the match itself waits
   // for the Deploy button (intent:startMatch).
   shell.publishView()
+
+  // Rendered model thumbnails for the UI (C-04 -> bus -> C-05).
+  void generateThumbnails(getCatalog()).then((thumbs) => bus.emit('thumbnails', thumbs))
 
   // SIM_SPEED sim-seconds per wall second: real-spec physics, playable pace.
   // Fixed-timestep accumulator so a starved timer catches up instead of

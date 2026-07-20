@@ -19,6 +19,7 @@ import { makeDroneModel, type DroneModel } from './models'
 import { makeScatter, makeSky } from './environment'
 import { makeEffects } from './effects'
 import { glowSpriteMaterial } from './glowtex'
+import { makeDamageFx } from './damage'
 
 const PICK_TOLERANCE_M = 60
 
@@ -105,6 +106,8 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
 
   const fx = makeEffects(groundY)
   scene.add(fx.group)
+  const dmg = makeDamageFx()
+  scene.add(dmg.group)
 
   /** Is a world point inside the currently visible fog area of the view? */
   function visibleAt(view: PlayerView, x: number, z: number): boolean {
@@ -117,10 +120,10 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   function emitSelection(): void {
     if (!lastView) return
     selectionCb({
-      drones: lastView.ownDrones.filter((d) => selected.has(d.id)),
-      structures: lastView.structures.filter(
-        (s) => s.id === selectedStructureId && s.playerId === lastView!.playerId,
-      ),
+      // Enemy units are selectable for intel; the shell only ever issues
+      // orders for the player's own ids.
+      drones: [...lastView.ownDrones, ...lastView.enemyDrones].filter((d) => selected.has(d.id)),
+      structures: lastView.structures.filter((s) => s.id === selectedStructureId),
       nodes: lastView.nodes.filter((n) => n.id === selectedNodeId),
     })
   }
@@ -316,7 +319,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     // Prune dead or vanished selections and tell the UI about it.
     let selectionChanged = false
     for (const id of [...selected]) {
-      if (!view.ownDrones.some((d) => d.id === id)) {
+      if (![...view.ownDrones, ...view.enemyDrones].some((d) => d.id === id)) {
         selected.delete(id)
         selectionChanged = true
       }
@@ -331,14 +334,28 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     }
     if (selectionChanged) emitSelection()
 
+    const hostileColor = 0xff5b5b
+    const friendlyColor = 0x5ee7c8
     const ringItems = [
-      ...view.ownDrones
+      ...[...view.ownDrones, ...view.enemyDrones]
         .filter((d) => selected.has(d.id))
-        .map((d) => ({ id: d.id, pos: d.pos, r: (droneMeshes.get(d.id)?.scale.x ?? 12) * 1.1 })),
+        .map((d) => ({
+          id: d.id,
+          pos: d.pos,
+          r: (droneMeshes.get(d.id)?.scale.x ?? 12) * 1.1,
+          color: d.playerId === view.playerId ? friendlyColor : hostileColor,
+        })),
       ...view.structures
         .filter((s) => s.id === selectedStructureId)
-        .map((s) => ({ id: s.id, pos: s.pos, r: 78 })),
-      ...view.nodes.filter((n) => n.id === selectedNodeId).map((n) => ({ id: n.id, pos: n.pos, r: 55 })),
+        .map((s) => ({
+          id: s.id,
+          pos: s.pos,
+          r: 78,
+          color: s.playerId === view.playerId ? friendlyColor : hostileColor,
+        })),
+      ...view.nodes
+        .filter((n) => n.id === selectedNodeId)
+        .map((n) => ({ id: n.id, pos: n.pos, r: 55, color: friendlyColor })),
     ]
     sync(
       selectionRings,
@@ -349,7 +366,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
         const inner = new THREE.Mesh(
           new THREE.RingGeometry(size * 0.95, size * 1.02, 32),
           new THREE.MeshBasicMaterial({
-            color: 0x5ee7c8,
+            color: item.color,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.9,
@@ -361,7 +378,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
         const outer = new THREE.Mesh(
           new THREE.RingGeometry(size * 1.18, size * 1.3, 6),
           new THREE.MeshBasicMaterial({
-            color: 0x5ee7c8,
+            color: item.color,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.45,
@@ -396,6 +413,24 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       }
     }
     fx.syncView(view)
+
+    // Damage states: smoke and fire on anything below 75% hull.
+    dmg.sync([
+      ...[...view.ownDrones, ...view.enemyDrones].map((d) => ({
+        id: d.id,
+        pos: d.pos,
+        hp: d.hp,
+        hpMax: d.hpMax,
+        size: droneMeshes.get(d.id)?.scale.x ?? 12,
+      })),
+      ...view.structures.map((st) => ({
+        id: st.id,
+        pos: { x: st.pos.x, y: st.pos.y + 24, z: st.pos.z },
+        hp: st.hp,
+        hpMax: st.hpMax,
+        size: 42,
+      })),
+    ])
 
     drawFog(view.fog)
   }
@@ -564,6 +599,11 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       } else if (target.kind === 'ownStructure' && target.id) {
         selected.clear()
         selectedStructureId = target.id
+      } else if (target.kind === 'enemy' && target.id) {
+        // Intel click: inspect an enemy unit or structure.
+        selected.clear()
+        if (lastView.enemyDrones.some((d) => d.id === target.id)) selected.add(target.id)
+        else selectedStructureId = target.id
       } else if (target.kind === 'node' && target.id) {
         selected.clear()
         selectedNodeId = target.id
@@ -712,6 +752,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     animateDrones(dt, elapsed)
     animateProps(dt, elapsed)
     fx.update(dt, elapsed, camera)
+    dmg.update(dt, elapsed)
     cameraPoseCb({ x: rig.focus.x, z: rig.focus.z, yaw: rig.yaw, dist: rig.dist })
     renderer.render(scene, camera)
   })

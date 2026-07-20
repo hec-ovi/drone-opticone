@@ -26,12 +26,15 @@ export interface ClientTopics extends Record<string, unknown> {
   events: SimEvent[]
   selection: Selection
   cameraPose: CameraPose
+  thumbnails: ThumbnailSet
   'intent:build': { specId: string }
   'intent:sweepMode': boolean
   'intent:restart': null
   'intent:focus': { x: number; z: number }
   'intent:policy': PolicySpec | null
   'intent:selfDestruct': null
+  'intent:stop': null
+  'intent:mineNearest': null
   'intent:startMatch': { seed: number; difficulty: 'easy' | 'normal' | 'hard' }
   'intent:openMenu': null
   'intent:mute': boolean
@@ -39,6 +42,17 @@ export interface ClientTopics extends Record<string, unknown> {
 }
 
 export type SceneInteractionMode = 'normal' | 'sweep'
+
+/**
+ * Rendered model thumbnails (data URLs) keyed by spec id, structure kind and
+ * node kind. Produced by C-04 at boot, consumed by C-05 for cards, portraits
+ * and chips; empty maps headless.
+ */
+export interface ThumbnailSet {
+  drones: Record<string, string>
+  structures: Record<string, string>
+  nodes: Record<string, string>
+}
 
 /** Where the RTS camera is looking, published for the minimap. */
 export interface CameraPose {
