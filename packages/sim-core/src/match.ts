@@ -73,13 +73,15 @@ export function createMatch(
 
   const onGround = (x: number, z: number): Vec3 => ({ x, y: ground(x, z), z })
 
+  // Buildings sit 180 m apart so each one reads as its own installation
+  // instead of one merged blob (footprints are ~100 m at commander scale).
   const structures = playerIds.flatMap((pid, i) => {
     const b = basePos[i]!
     return [
       structure(`s-${pid}-centcomm`, 'centcomm', pid, onGround(b.x, b.z)),
-      structure(`s-${pid}-refinery`, 'refinery', pid, onGround(b.x + 90, b.z)),
-      structure(`s-${pid}-factory`, 'factory', pid, onGround(b.x, b.z + 90)),
-      structure(`s-${pid}-uplink`, 'satellite-uplink', pid, onGround(b.x - 90, b.z)),
+      structure(`s-${pid}-refinery`, 'refinery', pid, onGround(b.x + 180, b.z)),
+      structure(`s-${pid}-factory`, 'factory', pid, onGround(b.x, b.z + 180)),
+      structure(`s-${pid}-uplink`, 'satellite-uplink', pid, onGround(b.x - 180, b.z)),
     ]
   })
 
@@ -102,18 +104,20 @@ export function createMatch(
     addNode(i % 2 === 0 ? 'lithium' : 'oil', onGround(rx.value, rz.value), 1500)
   }
 
+  // Starting drones hold an arc north of the base, clear of every building.
   const drones: DroneState[] = []
   let entitySeq = 0
   playerIds.forEach((pid, i) => {
     const b = basePos[i]!
-    for (const specId of TUNING.startingDroneIds) {
+    TUNING.startingDroneIds.forEach((specId, slot) => {
       const spec = catalog[specId]
-      if (!spec) continue
+      if (!spec) return
       const alt = TUNING.hoverAltM[spec.class] ?? 60
-      const x = b.x + 30 + entitySeq * 10
-      const z = b.z - 40
+      const a = -Math.PI / 2 + (slot - (TUNING.startingDroneIds.length - 1) / 2) * 0.45
+      const x = b.x + Math.cos(a) * 170
+      const z = b.z + Math.sin(a) * 170
       drones.push(makeDrone(spec, pid, { x, y: ground(x, z) + alt, z }, `e${entitySeq++}`))
-    }
+    })
   })
 
   const windDir = rngRange(rngState, 0, Math.PI * 2)

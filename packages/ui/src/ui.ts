@@ -10,6 +10,7 @@ import type {
 import { ICONS, droneClassIcon, iconEl } from './icons'
 import { nodePortraitEl, portraitEl, structurePortraitEl } from './portraits'
 import { minimapPanel } from './minimap'
+import { droneRole } from './roles'
 
 /**
  * C-05 mountUI. One StarCraft-style command console docked at the bottom
@@ -164,8 +165,14 @@ function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
         btn.setAttribute('aria-label', `Build ${spec.name}`)
         btn.appendChild(iconEl(droneClassIcon(spec.class), 'icon build-icon'))
         const info = el('span', 'build-info', btn)
-        const name = el('span', 'build-name', info)
+        const nameRow = el('span', 'build-name-row', info)
+        const name = el('span', 'build-name', nameRow)
         name.textContent = spec.name
+        const role = droneRole(spec)
+        const roleTag = el('span', `role-tag role-${role.tag.toLowerCase()}`, nameRow)
+        roleTag.textContent = role.tag
+        const roleText = el('span', 'build-role', info)
+        roleText.textContent = role.text
         const meta = el('span', 'build-meta', info)
         const costs: Record<string, HTMLElement> = {}
         const costChip = (icon: string, key: string) => {
@@ -269,6 +276,11 @@ function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
       const name = el('p', 'sel-name', detail)
       name.textContent = spec?.name ?? primary.specId
       const tags = el('p', 'sel-tags', detail)
+      if (spec) {
+        const role = droneRole(spec)
+        const roleTag = el('span', `role-tag role-${role.tag.toLowerCase()}`, tags)
+        roleTag.textContent = role.tag
+      }
       const mode = el('span', 'tag', tags)
       mode.textContent = primary.mode
       if (primary.policy) {
@@ -279,6 +291,10 @@ function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
         const warn = el('span', 'tag tag-warn', tags)
         warn.appendChild(iconEl(ICONS.nolink, 'icon icon-s'))
         warn.appendChild(document.createTextNode('NO LINK'))
+      }
+      if (spec) {
+        const roleHint = el('p', 'sel-hint', detail)
+        roleHint.textContent = droneRole(spec).text
       }
 
       if (spec?.batteryWh) {

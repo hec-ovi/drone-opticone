@@ -9,3 +9,4 @@ export {
   nodePortraitSvg,
 } from './portraits'
 export { MINIMAP_SIZE, minimapToWorld, worldToMinimap } from './minimap'
+export { droneRole, type DroneRole, type RoleTag } from './roles'

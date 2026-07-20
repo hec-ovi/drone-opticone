@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Bus, type ClientTopics, type PlayerView, type PolicySpec } from '@opticone/shared'
 import { getCatalog, SEED_DRONES } from '@opticone/registry'
 import { createMatch, snapshot, tick } from '@opticone/sim-core'
-import { mountUI, minimapToWorld, worldToMinimap, MINIMAP_SIZE, portraitSvg } from '@opticone/ui'
+import { mountUI, minimapToWorld, worldToMinimap, MINIMAP_SIZE, portraitSvg, droneRole } from '@opticone/ui'
 
 function humanView(mutate?: (v: PlayerView) => void): PlayerView {
   const s = tick(
@@ -244,5 +244,40 @@ describe('C-05 structure and node selection', () => {
     const base = view.structures[0]!
     bus.emit('selection', { drones: [], structures: [base], nodes: [] })
     expect(screen.getByRole('button', { name: 'Kamikaze guard' })).toBeDisabled()
+  })
+})
+
+describe('C-05 drone roles', () => {
+  it('every seed drone has a role tag and a what-it-does line', () => {
+    for (const spec of SEED_DRONES) {
+      const role = droneRole(spec)
+      expect(['RECON', 'STRIKE', 'SIEGE', 'BOMBER', 'MINER', 'CARGO']).toContain(role.tag)
+      expect(role.text.length).toBeGreaterThan(15)
+    }
+  })
+
+  it('build cards show the role tag and description', () => {
+    document.body.innerHTML = ''
+    const bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+    bus.emit('view', humanView())
+    const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
+    expect(fpv.textContent).toContain('STRIKE')
+    expect(fpv.textContent).toContain('Cheap kamikaze')
+    const miner = screen.getByRole('button', { name: /Build Ore miner/ })
+    expect(miner.textContent).toContain('MINER')
+  })
+
+  it('the selection panel explains what the selected unit does', () => {
+    document.body.innerHTML = ''
+    const bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+    const view = humanView()
+    bus.emit('view', view)
+    const scout = view.ownDrones.find((d) => d.specId === 'mavic3')!
+    bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
+    const detail = document.querySelector('.selection-detail')!
+    expect(detail.textContent).toContain('RECON')
+    expect(detail.textContent).toContain('reveals the fog')
   })
 })

@@ -518,11 +518,24 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
     if (!factory || !sp) continue
     const id = `e${s.nextEntityId++}`
     const alt = targetAltitude(sp)
-    // Spawn ring: consecutive builds leave the pad at different bearings so
-    // fresh drones never stack on one point.
+    // Spawn ring beyond the factory on the side away from the centcomm, so
+    // fresh drones appear next to the base, never on top of it, and
+    // consecutive builds fan over different bearings instead of stacking.
+    const centcomm = s.structures.find((st) => st.playerId === job.playerId && st.kind === 'centcomm')
+    let awayX = 0
+    let awayZ = 1
+    if (centcomm) {
+      const dx = factory.pos.x - centcomm.pos.x
+      const dz = factory.pos.z - centcomm.pos.z
+      const len = Math.hypot(dx, dz) || 1
+      awayX = dx / len
+      awayZ = dz / len
+    }
     const spawnAngle = s.nextEntityId * 2.399963
-    const x = factory.pos.x + Math.cos(spawnAngle) * TUNING.spawnRingM
-    const z = factory.pos.z + Math.sin(spawnAngle) * TUNING.spawnRingM
+    const cx = factory.pos.x + awayX * TUNING.spawnOffsetM
+    const cz = factory.pos.z + awayZ * TUNING.spawnOffsetM
+    const x = cx + Math.cos(spawnAngle) * TUNING.spawnRingM
+    const z = cz + Math.sin(spawnAngle) * TUNING.spawnRingM
     s.drones.push(makeDrone(sp, job.playerId, { x, y: ground(s, x, z) + alt, z }, id))
     events.push({ type: 'spawned', entityId: id, playerId: job.playerId, specId: sp.id })
   }

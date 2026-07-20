@@ -213,8 +213,9 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     if (!focused) {
       const base = view.structures.find((s) => s.playerId === view.playerId && s.kind === 'centcomm')
       if (base) {
+        // Bias toward the factory side so the console never hides the base.
         rig.focus.x = base.pos.x
-        rig.focus.z = base.pos.z
+        rig.focus.z = base.pos.z + 140
         focused = true
       }
     }

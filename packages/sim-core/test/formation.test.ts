@@ -69,5 +69,28 @@ describe('C-03 spacing and collisions', () => {
     expect(spawned.length).toBe(2)
     const [s1, s2] = spawned
     expect(Math.hypot(s1!.pos.x - s2!.pos.x, s1!.pos.z - s2!.pos.z)).toBeGreaterThan(10)
+    // Fresh drones appear beside the base, never over a building.
+    for (const d of spawned) {
+      for (const st of s.structures.filter((st) => st.playerId === 'alpha')) {
+        expect(Math.hypot(d.pos.x - st.pos.x, d.pos.z - st.pos.z)).toBeGreaterThan(70)
+      }
+    }
+  })
+
+  it('base structures stand apart and starting drones spawn clear of them all', () => {
+    const s = calm()
+    const own = s.structures.filter((st) => st.playerId === 'alpha')
+    for (let i = 0; i < own.length; i++) {
+      for (let j = i + 1; j < own.length; j++) {
+        expect(
+          Math.hypot(own[i]!.pos.x - own[j]!.pos.x, own[i]!.pos.z - own[j]!.pos.z),
+        ).toBeGreaterThanOrEqual(170)
+      }
+    }
+    for (const d of s.drones.filter((dr) => dr.playerId === 'alpha')) {
+      for (const st of own) {
+        expect(Math.hypot(d.pos.x - st.pos.x, d.pos.z - st.pos.z)).toBeGreaterThan(70)
+      }
+    }
   })
 })

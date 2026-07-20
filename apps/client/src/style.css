@@ -551,6 +551,13 @@ button:disabled {
   min-width: 0;
 }
 
+.build-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .build-name {
   font-weight: 600;
   font-size: 12.5px;
@@ -558,6 +565,30 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.build-role {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role-tag {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border: 1px solid;
+}
+
+.role-recon { color: #6fd3ff; border-color: rgba(111, 211, 255, 0.55); }
+.role-strike { color: #ff9b57; border-color: rgba(255, 155, 87, 0.55); }
+.role-siege { color: #ff6257; border-color: rgba(255, 98, 87, 0.6); }
+.role-bomber { color: #e9c35c; border-color: rgba(233, 195, 92, 0.55); }
+.role-miner { color: #5ee7c8; border-color: rgba(94, 231, 200, 0.55); }
+.role-cargo { color: #b7c0c8; border-color: rgba(183, 192, 200, 0.5); }
 
 .build-meta {
   display: flex;

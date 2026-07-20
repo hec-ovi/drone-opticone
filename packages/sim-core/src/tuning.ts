@@ -19,6 +19,8 @@ export const TUNING = {
   collisionDistM: 4,
   formationSpacingM: 22,
   spawnRingM: 55,
+  /** fresh builds leave the pad this far beyond the factory, away from base */
+  spawnOffsetM: 135,
   munitionMassKg: 25,
   munitionDamage: 1500,
   munitionSplashM: 20,
