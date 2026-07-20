@@ -9,6 +9,7 @@ import {
   type PlayerView,
   type SceneInteractionMode,
   type ScenePort,
+  type Selection,
 } from '@opticone/shared'
 import { classifyPick, ndcToGround } from './pick'
 import { CameraRig } from './camera'
@@ -78,11 +79,13 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   const projectileMeshes = new Map<string, THREE.Object3D>()
   const selectionRings = new Map<string, THREE.Object3D>()
   const selected = new Set<string>()
+  let selectedStructureId: string | null = null
+  let selectedNodeId: string | null = null
 
   let lastView: PlayerView | null = null
   let mode: SceneInteractionMode = 'normal'
   let commandCb: (cmd: IssuedCommand) => void = () => {}
-  let selectionCb: (drones: DroneState[]) => void = () => {}
+  let selectionCb: (selection: Selection) => void = () => {}
   let cameraPoseCb: (pose: CameraPose) => void = () => {}
 
   // Control groups: Shift+1..9 assigns the current selection, 1..9 recalls,
@@ -113,7 +116,13 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
 
   function emitSelection(): void {
     if (!lastView) return
-    selectionCb(lastView.ownDrones.filter((d) => selected.has(d.id)))
+    selectionCb({
+      drones: lastView.ownDrones.filter((d) => selected.has(d.id)),
+      structures: lastView.structures.filter(
+        (s) => s.id === selectedStructureId && s.playerId === lastView!.playerId,
+      ),
+      nodes: lastView.nodes.filter((n) => n.id === selectedNodeId),
+    })
   }
 
   function sync<T extends { id: string }>(
@@ -303,14 +312,38 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       },
     )
 
+    // Prune dead or vanished selections and tell the UI about it.
+    let selectionChanged = false
     for (const id of [...selected]) {
-      if (!view.ownDrones.some((d) => d.id === id)) selected.delete(id)
+      if (!view.ownDrones.some((d) => d.id === id)) {
+        selected.delete(id)
+        selectionChanged = true
+      }
     }
+    if (selectedStructureId && !view.structures.some((s) => s.id === selectedStructureId)) {
+      selectedStructureId = null
+      selectionChanged = true
+    }
+    if (selectedNodeId && !view.nodes.some((n) => n.id === selectedNodeId)) {
+      selectedNodeId = null
+      selectionChanged = true
+    }
+    if (selectionChanged) emitSelection()
+
+    const ringItems = [
+      ...view.ownDrones
+        .filter((d) => selected.has(d.id))
+        .map((d) => ({ id: d.id, pos: d.pos, r: (droneMeshes.get(d.id)?.scale.x ?? 12) * 1.1 })),
+      ...view.structures
+        .filter((s) => s.id === selectedStructureId)
+        .map((s) => ({ id: s.id, pos: s.pos, r: 78 })),
+      ...view.nodes.filter((n) => n.id === selectedNodeId).map((n) => ({ id: n.id, pos: n.pos, r: 55 })),
+    ]
     sync(
       selectionRings,
-      view.ownDrones.filter((d) => selected.has(d.id)),
-      (d) => {
-        const size = (droneMeshes.get(d.id)?.scale.x ?? 12) * 1.1
+      ringItems,
+      (item) => {
+        const size = item.r
         const g = new THREE.Group()
         const inner = new THREE.Mesh(
           new THREE.RingGeometry(size * 0.95, size * 1.02, 32),
@@ -367,11 +400,14 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   }
 
   // Input: keys, wheel zoom, edge pan, middle-mouse orbit, L+R grab pan.
+  // Move/up are window-level so drags that end over the console still finish
+  // cleanly; pressStartedOnCanvas gates game actions to canvas presses.
   const keys = new Set<string>()
   const pointer = { x: -1, y: -1, inside: false }
   let rotating = false
   let dragPanning = false
   let suppressClick = false
+  let pressStartedOnCanvas = false
   let downPos = { x: 0, y: 0 }
   let movedPx = 0
   const clock = new THREE.Clock()
@@ -395,6 +431,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   }
 
   function onPointerDown(ev: PointerEvent): void {
+    pressStartedOnCanvas = true
     if (ev.button === 1) {
       ev.preventDefault()
       rotating = true
@@ -431,7 +468,9 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     const rect = canvas.getBoundingClientRect()
     pointer.x = ev.clientX - rect.left
     pointer.y = ev.clientY - rect.top
-    pointer.inside = true
+    // Edge pan only while the cursor actually hovers the field, not the HUD.
+    pointer.inside = ev.target === canvas
+    if (!pressStartedOnCanvas) return
     movedPx = Math.max(movedPx, Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y))
     if (dragPanning && (ev.buttons & 3) === 3) {
       cancelMarquee()
@@ -440,6 +479,12 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     }
     if (rotating) {
       rig.rotate(ev.movementX, ev.movementY)
+      return
+    }
+    // Right button drag: grab-pan. A plain right CLICK (no drag) still
+    // issues orders on pointerup because movedPx stays under the threshold.
+    if (ev.buttons === 2 && movedPx > 6) {
+      rig.dragPan(ev.movementX, ev.movementY)
       return
     }
     // Left button alone dragging in normal mode: marquee selection box.
@@ -460,6 +505,8 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     const minY = Math.min(marqueeFrom.y, toY)
     const maxY = Math.max(marqueeFrom.y, toY)
     if (!additive) selected.clear()
+    selectedStructureId = null
+    selectedNodeId = null
     camera.updateMatrixWorld()
     const v = new THREE.Vector3()
     for (const d of lastView.ownDrones) {
@@ -473,9 +520,12 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   }
 
   function onPointerUp(ev: PointerEvent): void {
+    const startedHere = pressStartedOnCanvas
+    if (ev.buttons === 0) pressStartedOnCanvas = false
+    if (!startedHere) return
     if (ev.button === 1) {
       rotating = false
-      canvas.releasePointerCapture(ev.pointerId)
+      if (canvas.hasPointerCapture(ev.pointerId)) canvas.releasePointerCapture(ev.pointerId)
       return
     }
     if ((ev.buttons & 3) !== 3) dragPanning = false
@@ -506,7 +556,17 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
 
     if (ev.button === 0) {
       if (!ev.shiftKey) selected.clear()
-      if (target.kind === 'ownDrone' && target.id) selected.add(target.id)
+      selectedStructureId = null
+      selectedNodeId = null
+      if (target.kind === 'ownDrone' && target.id) {
+        selected.add(target.id)
+      } else if (target.kind === 'ownStructure' && target.id) {
+        selected.clear()
+        selectedStructureId = target.id
+      } else if (target.kind === 'node' && target.id) {
+        selected.clear()
+        selectedNodeId = target.id
+      }
       emitSelection()
       return
     }
@@ -550,6 +610,8 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
           lastView!.ownDrones.some((d) => d.id === id),
         )
         selected.clear()
+        selectedStructureId = null
+        selectedNodeId = null
         for (const id of members) selected.add(id)
         emitSelection()
         const now = performance.now()
@@ -574,9 +636,9 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   const onContext = (ev: Event) => ev.preventDefault()
 
   canvas.addEventListener('pointerdown', onPointerDown)
-  canvas.addEventListener('pointermove', onPointerMove)
-  canvas.addEventListener('pointerup', onPointerUp)
-  canvas.addEventListener('pointerleave', onPointerLeave)
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+  document.documentElement.addEventListener('mouseleave', onPointerLeave)
   canvas.addEventListener('wheel', onWheel, { passive: false })
   canvas.addEventListener('contextmenu', onContext)
   window.addEventListener('keydown', onKeyDown)
@@ -666,9 +728,9 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     dispose: () => {
       renderer.setAnimationLoop(null)
       canvas.removeEventListener('pointerdown', onPointerDown)
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointerup', onPointerUp)
-      canvas.removeEventListener('pointerleave', onPointerLeave)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      document.documentElement.removeEventListener('mouseleave', onPointerLeave)
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('contextmenu', onContext)
       window.removeEventListener('keydown', onKeyDown)

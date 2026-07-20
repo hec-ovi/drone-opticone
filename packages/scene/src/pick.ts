@@ -36,10 +36,13 @@ export function nearestPickable<T extends Pickable>(point: Vec3, items: T[], max
 }
 
 export interface PickTarget {
-  kind: 'ownDrone' | 'enemy' | 'node' | 'ground'
+  kind: 'ownDrone' | 'ownStructure' | 'enemy' | 'node' | 'ground'
   id: string | null
   point: Vec3
 }
+
+/** Structures and nodes are physically larger than the drone tolerance. */
+const BUILDING_PICK_M = 90
 
 /** Classify what a ground point refers to, in RTS priority order. */
 export function classifyPick(view: PlayerView, point: Vec3, tolerance: number): PickTarget {
@@ -51,7 +54,13 @@ export function classifyPick(view: PlayerView, point: Vec3, tolerance: number): 
     tolerance,
   )
   if (enemy) return { kind: 'enemy', id: enemy.id, point }
-  const node = nearestPickable(point, view.nodes, tolerance)
+  const ownStructure = nearestPickable(
+    point,
+    view.structures.filter((s) => s.playerId === view.playerId),
+    Math.max(tolerance, BUILDING_PICK_M),
+  )
+  if (ownStructure) return { kind: 'ownStructure', id: ownStructure.id, point }
+  const node = nearestPickable(point, view.nodes, Math.max(tolerance, BUILDING_PICK_M))
   if (node) return { kind: 'node', id: node.id, point }
   return { kind: 'ground', id: null, point }
 }

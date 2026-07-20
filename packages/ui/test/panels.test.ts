@@ -78,7 +78,7 @@ describe('C-05 animated portraits', () => {
     const view = humanView()
     bus.emit('view', view)
     const scout = view.ownDrones.find((d) => d.specId === 'mavic3')!
-    bus.emit('selection', [scout])
+    bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
     const portrait = document.querySelector('.portrait') as HTMLElement
     expect(portrait).not.toBeNull()
     expect(portrait.dataset.spec).toBe('mavic3')
@@ -87,7 +87,7 @@ describe('C-05 animated portraits', () => {
 
     // Selection change swaps the portrait.
     const miner = view.ownDrones.find((d) => d.specId === 'ore-miner')!
-    bus.emit('selection', [miner])
+    bus.emit('selection', { drones: [miner], structures: [], nodes: [] })
     expect((document.querySelector('.portrait') as HTMLElement).dataset.spec).toBe('ore-miner')
   })
 })
@@ -105,16 +105,16 @@ describe('C-05 command card', () => {
     const kamikaze = screen.getByRole('button', { name: 'Kamikaze guard' })
     expect(kamikaze).toBeDisabled()
     const view = humanView()
-    bus.emit('selection', [view.ownDrones[0]!])
+    bus.emit('selection', { drones: [view.ownDrones[0]!], structures: [], nodes: [] })
     expect(kamikaze).toBeEnabled()
-    bus.emit('selection', [])
+    bus.emit('selection', { drones: [], structures: [], nodes: [] })
     expect(kamikaze).toBeDisabled()
   })
 
   it('policy buttons publish typed policy intents', async () => {
     const user = userEvent.setup()
     const view = humanView()
-    bus.emit('selection', [view.ownDrones[0]!])
+    bus.emit('selection', { drones: [view.ownDrones[0]!], structures: [], nodes: [] })
     const policies: (PolicySpec | null)[] = []
     bus.on('intent:policy', (p) => policies.push(p))
 
@@ -130,7 +130,7 @@ describe('C-05 command card', () => {
 
   it('self-destruct publishes its intent', async () => {
     const user = userEvent.setup()
-    bus.emit('selection', [humanView().ownDrones[0]!])
+    bus.emit('selection', { drones: [humanView().ownDrones[0]!], structures: [], nodes: [] })
     let destructs = 0
     bus.on('intent:selfDestruct', () => destructs++)
     await user.click(screen.getByRole('button', { name: 'Self-destruct' }))
@@ -199,5 +199,50 @@ describe('C-05 build queue and menu flow', () => {
     expect(document.querySelector('.wind-chip')!.classList.contains('warn')).toBe(true)
     bus.emit('view', humanView((v) => (v.wind.speedMps = 4)))
     expect(document.querySelector('.wind-chip')!.classList.contains('warn')).toBe(false)
+  })
+})
+
+describe('C-05 structure and node selection', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('selecting a building shows its animated portrait and hull bar', () => {
+    const view = humanView()
+    bus.emit('view', view)
+    const base = view.structures.find((s) => s.kind === 'centcomm')!
+    base.hp = base.hpMax * 0.6
+    bus.emit('selection', { drones: [], structures: [base], nodes: [] })
+
+    const portrait = document.querySelector('.portrait') as HTMLElement
+    expect(portrait.dataset.structure).toBe('centcomm')
+    expect(portrait.querySelector('.p-rotor')).not.toBeNull() // radar sweep
+    expect(document.querySelector('.selection-detail')!.textContent).toContain('CENTCOM base')
+    expect(document.querySelector('.stat-value')!.textContent).toContain('hull 60%')
+  })
+
+  it('selecting a resource node shows its reserve', () => {
+    const view = humanView()
+    bus.emit('view', view)
+    const node = view.nodes.find((n) => n.kind === 'lithium')!
+    node.remainingKg = 750
+    bus.emit('selection', { drones: [], structures: [], nodes: [node] })
+
+    const portrait = document.querySelector('.portrait') as HTMLElement
+    expect(portrait.dataset.node).toBe('lithium')
+    expect(document.querySelector('.selection-detail')!.textContent).toContain('Lithium crystals')
+    expect(document.querySelector('.stat-value')!.textContent).toContain('750 kg left')
+  })
+
+  it('orders stay disabled when only a building is selected', () => {
+    const view = humanView()
+    bus.emit('view', view)
+    const base = view.structures[0]!
+    bus.emit('selection', { drones: [], structures: [base], nodes: [] })
+    expect(screen.getByRole('button', { name: 'Kamikaze guard' })).toBeDisabled()
   })
 })

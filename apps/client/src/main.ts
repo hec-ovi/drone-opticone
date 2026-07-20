@@ -2,7 +2,7 @@ import '@fontsource/rajdhani/500.css'
 import '@fontsource/rajdhani/600.css'
 import '@fontsource/rajdhani/700.css'
 import '@fontsource/share-tech-mono'
-import { Bus, TICK_RATE, type ClientTopics } from '@opticone/shared'
+import { Bus, SIM_SPEED, TICK_RATE, type ClientTopics } from '@opticone/shared'
 import { mountScene } from '@opticone/scene'
 import { mountUI } from '@opticone/ui'
 import { GameShell } from './shell'
@@ -30,9 +30,29 @@ async function boot(): Promise<void> {
   // for the Deploy button (intent:startMatch).
   shell.publishView()
 
+  // SIM_SPEED sim-seconds per wall second: real-spec physics, playable pace.
+  // Fixed-timestep accumulator so a starved timer catches up instead of
+  // silently slowing the game down.
+  const STEP_MS = 1000 / (TICK_RATE * SIM_SPEED)
+  const MAX_CATCHUP_STEPS = 12
+  let last = performance.now()
+  let acc = 0
   setInterval(() => {
-    if (shell.running) shell.step()
-  }, 1000 / TICK_RATE)
+    const now = performance.now()
+    acc += now - last
+    last = now
+    if (!shell.running) {
+      acc = 0
+      return
+    }
+    let steps = 0
+    while (acc >= STEP_MS && steps < MAX_CATCHUP_STEPS) {
+      shell.step()
+      acc -= STEP_MS
+      steps++
+    }
+    if (steps === MAX_CATCHUP_STEPS) acc = 0 // machine cannot keep up; drop the backlog
+  }, STEP_MS)
 }
 
 void boot()

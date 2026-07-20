@@ -75,7 +75,7 @@ describe('C-05 UI panels', () => {
     const scout = view.ownDrones.find((d) => d.specId === 'mavic3')!
     scout.batteryWh = 77 / 2
     scout.uncontrolled = true
-    bus.emit('selection', [scout])
+    bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
 
     const list = within(screen.getByRole('heading', { name: 'Selection' }).parentElement as HTMLElement)
     expect(list.getByText(/DJI Mavic 3/)).toBeDefined()

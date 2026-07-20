@@ -1,4 +1,21 @@
-import type { DroneState, IssuedCommand, PlayerView, PolicySpec, SimEvent } from './types'
+import type {
+  DroneState,
+  IssuedCommand,
+  PlayerView,
+  PolicySpec,
+  ResourceNodeState,
+  SimEvent,
+  StructureState,
+} from './types'
+
+/** What the player currently has selected: units, own buildings, or a node. */
+export interface Selection {
+  drones: DroneState[]
+  structures: StructureState[]
+  nodes: ResourceNodeState[]
+}
+
+export const EMPTY_SELECTION: Selection = { drones: [], structures: [], nodes: [] }
 
 /**
  * Client-side bus topics. The app shell owns the wiring; scene (C-04),
@@ -7,7 +24,7 @@ import type { DroneState, IssuedCommand, PlayerView, PolicySpec, SimEvent } from
 export interface ClientTopics extends Record<string, unknown> {
   view: PlayerView
   events: SimEvent[]
-  selection: DroneState[]
+  selection: Selection
   cameraPose: CameraPose
   'intent:build': { specId: string }
   'intent:sweepMode': boolean
@@ -35,7 +52,7 @@ export interface CameraPose {
 export interface ScenePort {
   applyView(view: PlayerView): void
   onCommand(cb: (cmd: IssuedCommand) => void): void
-  onSelection(cb: (drones: DroneState[]) => void): void
+  onSelection(cb: (selection: Selection) => void): void
   onCameraPose(cb: (pose: CameraPose) => void): void
   focusAt(x: number, z: number): void
   setInteractionMode(mode: SceneInteractionMode): void

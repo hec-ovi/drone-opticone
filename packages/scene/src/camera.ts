@@ -12,8 +12,8 @@ export const CAM = {
   maxDist: 6500,
   minPitch: 0.35, // rad above the horizon
   maxPitch: 1.35,
-  panSpeed: 1.9, // map-units per second per unit of camDist... scaled below
-  edgePx: 26,
+  panSpeed: 2.3, // map-units per second per unit of camDist... scaled below
+  edgePx: 32,
   rotatePerPx: 0.006,
   pitchPerPx: 0.004,
 }

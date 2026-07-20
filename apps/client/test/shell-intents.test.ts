@@ -4,6 +4,7 @@ import {
   type ClientTopics,
   type DroneState,
   type IssuedCommand,
+  type Selection,
   type PlayerView,
   type ScenePort,
   type SceneInteractionMode,
@@ -15,14 +16,14 @@ class FakeScene implements ScenePort {
   mode: SceneInteractionMode = 'normal'
   focused: { x: number; z: number } | null = null
   private commandCb: (cmd: IssuedCommand) => void = () => {}
-  private selectionCb: (drones: DroneState[]) => void = () => {}
+  private selectionCb: (selection: Selection) => void = () => {}
   applyView(view: PlayerView): void {
     this.views.push(view)
   }
   onCommand(cb: (cmd: IssuedCommand) => void): void {
     this.commandCb = cb
   }
-  onSelection(cb: (drones: DroneState[]) => void): void {
+  onSelection(cb: (selection: Selection) => void): void {
     this.selectionCb = cb
   }
   onCameraPose(_cb: (pose: { x: number; z: number; yaw: number; dist: number }) => void): void {}
@@ -37,7 +38,7 @@ class FakeScene implements ScenePort {
     this.commandCb(cmd)
   }
   userSelects(drones: DroneState[]): void {
-    this.selectionCb(drones)
+    this.selectionCb({ drones, structures: [], nodes: [] })
   }
 }
 

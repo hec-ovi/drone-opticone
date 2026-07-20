@@ -3,6 +3,7 @@ import { PerspectiveCamera } from 'three/webgpu'
 import { classifyPick, ndcToGround, nearestPickable } from '@opticone/scene'
 import { snapshot, createMatch, tick } from '@opticone/sim-core'
 import { getCatalog } from '@opticone/registry'
+import type { PlayerView } from '@opticone/shared'
 
 describe('C-04 picking math', () => {
   function rigCamera(): PerspectiveCamera {
@@ -48,5 +49,31 @@ describe('C-04 picking math', () => {
     expect(classifyPick(view, node.pos, 60)).toMatchObject({ kind: 'node', id: node.id })
 
     expect(classifyPick(view, { x: 2000, y: 0, z: 2000 }, 60).kind).toBe('ground')
+  })
+})
+
+describe('C-04 pick: own structures and nodes', () => {
+  it('classifies clicks on own structures and nodes, with enemies taking priority', () => {
+    const view = {
+      playerId: 'me',
+      ownDrones: [],
+      enemyDrones: [],
+      structures: [
+        { id: 'mine-base', playerId: 'me', pos: { x: 1000, y: 0, z: 1000 } },
+        { id: 'their-base', playerId: 'them', pos: { x: 2000, y: 0, z: 2000 } },
+      ],
+      nodes: [{ id: 'n1', pos: { x: 3000, y: 0, z: 3000 } }],
+    } as unknown as PlayerView
+
+    expect(classifyPick(view, { x: 1040, y: 0, z: 1000 }, 60)).toMatchObject({
+      kind: 'ownStructure',
+      id: 'mine-base',
+    })
+    expect(classifyPick(view, { x: 2040, y: 0, z: 2000 }, 60)).toMatchObject({
+      kind: 'enemy',
+      id: 'their-base',
+    })
+    expect(classifyPick(view, { x: 3050, y: 0, z: 3000 }, 60)).toMatchObject({ kind: 'node', id: 'n1' })
+    expect(classifyPick(view, { x: 500, y: 0, z: 500 }, 60)).toMatchObject({ kind: 'ground', id: null })
   })
 })

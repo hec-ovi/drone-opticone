@@ -1,10 +1,11 @@
 import {
   Bus,
+  EMPTY_SELECTION,
   type ClientTopics,
-  type DroneState,
   type IssuedCommand,
   type MatchState,
   type ScenePort,
+  type Selection,
   type SimEvent,
 } from '@opticone/shared'
 import { createMatch, snapshot, tick } from '@opticone/sim-core'
@@ -25,7 +26,7 @@ export class GameShell {
   running = false
   private difficulty: Difficulty
   private queued: IssuedCommand[] = []
-  private selection: DroneState[] = []
+  private selection: Selection = EMPTY_SELECTION
   private offs: (() => void)[] = []
 
   constructor(
@@ -46,9 +47,9 @@ export class GameShell {
         this.bus.emit('sweepModeChanged', false)
       }
     })
-    this.scene.onSelection((drones) => {
-      this.selection = drones
-      this.bus.emit('selection', drones)
+    this.scene.onSelection((selection) => {
+      this.selection = selection
+      this.bus.emit('selection', selection)
     })
     this.scene.onCameraPose((pose) => this.bus.emit('cameraPose', pose))
 
@@ -65,21 +66,21 @@ export class GameShell {
       this.bus.on('intent:startMatch', ({ seed: s, difficulty: d }) => this.startMatch(s, d)),
       this.bus.on('intent:focus', ({ x, z }) => this.scene.focusAt(x, z)),
       this.bus.on('intent:policy', (policy) => {
-        if (this.selection.length === 0) return
+        if (this.selection.drones.length === 0) return
         this.queued.push({
           type: 'assignPolicy',
           playerId: HUMAN,
-          droneIds: this.selection.map((d) => d.id),
+          droneIds: this.selection.drones.map((d) => d.id),
           policy,
         })
         this.sound?.play('click')
       }),
       this.bus.on('intent:selfDestruct', () => {
-        if (this.selection.length === 0) return
+        if (this.selection.drones.length === 0) return
         this.queued.push({
           type: 'selfDestruct',
           playerId: HUMAN,
-          droneIds: this.selection.map((d) => d.id),
+          droneIds: this.selection.drones.map((d) => d.id),
         })
       }),
       this.bus.on('intent:mute', (muted) => {
@@ -92,9 +93,9 @@ export class GameShell {
     this.difficulty = difficulty
     this.state = createMatch(seed, 'map-1', [HUMAN, OVERLORD], getCatalog())
     this.queued = []
-    this.selection = []
+    this.selection = EMPTY_SELECTION
     this.running = true
-    this.bus.emit('selection', [])
+    this.bus.emit('selection', EMPTY_SELECTION)
   }
 
   /** Kept for compatibility with older callers and tests. */
