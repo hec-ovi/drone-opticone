@@ -662,13 +662,14 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
   const events: SimEvent[] = []
   s.tick++
 
-  // Wind random walk.
+  // Wind: a mean-reverting walk. Gusts spike, then the weather settles.
   if (!s.windLocked) {
     const dv = rngRange(s.rngState, -0.05, 0.05)
     s.rngState = dv.state
     const dd = rngRange(s.rngState, -0.02, 0.02)
     s.rngState = dd.state
-    s.wind.speedMps = Math.min(TUNING.windMaxMps, Math.max(0, s.wind.speedMps + dv.value))
+    const pull = (TUNING.windMeanMps - s.wind.speedMps) * TUNING.windReversion
+    s.wind.speedMps = Math.min(TUNING.windMaxMps, Math.max(0, s.wind.speedMps + dv.value + pull))
     s.wind.dirRad = (s.wind.dirRad + dd.value) % (Math.PI * 2)
   }
 

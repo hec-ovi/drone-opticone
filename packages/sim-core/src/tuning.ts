@@ -73,7 +73,13 @@ export const TUNING = {
   plasticPerOilKg: 0.5,
   startEconomy: { credits: 5000, lithiumKg: 50, oilKg: 0, plasticKg: 100 },
   batteryLowPct: 20,
-  windMaxMps: 15,
+  /**
+   * Weather: the walk mean-reverts to a flyable breeze so storm drift is an
+   * occasional event, not the default state (miners are limited to 10 m/s).
+   */
+  windMaxMps: 12,
+  windMeanMps: 6,
+  windReversion: 0.0002,
   satellite: { energyMax: 100, regenPerS: 1, sweepCost: 30, sweepRadiusM: 500, sweepDurationS: 10 },
   startingDroneIds: ['ore-miner', 'mavic3'],
 }

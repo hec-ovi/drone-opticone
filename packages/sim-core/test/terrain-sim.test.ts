@@ -118,3 +118,19 @@ describe('C-03 terrain level', () => {
     expect(run()).toBe(run())
   })
 })
+
+describe('C-03 weather', () => {
+  it('wind stays mostly flyable: storm drift is the exception, not the rule', () => {
+    let s = createMatch(42, 'map-1', ['a', 'b'], getCatalog())
+    s.drones = [] // weather only; no batteries to drain
+    let stormTicks = 0
+    const TICKS = 6000 // five simulated minutes
+    for (let t = 0; t < TICKS; t++) {
+      s = tick(s, []).state
+      if (s.wind.speedMps > 10) stormTicks++
+    }
+    expect(s.wind.speedMps).toBeLessThanOrEqual(12)
+    // Under a tenth of the match over the miners' 10 m/s limit.
+    expect(stormTicks / TICKS).toBeLessThan(0.1)
+  })
+})
