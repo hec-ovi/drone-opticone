@@ -64,6 +64,7 @@ export function createMatch(
     id,
     economy: { ...TUNING.startEconomy },
     satellite: { energy: TUNING.satellite.energyMax, sweeps: [] },
+    exportPower: false,
   }))
 
   const basePos: Vec3[] = [

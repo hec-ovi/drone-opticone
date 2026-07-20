@@ -13,6 +13,8 @@ export const STRUCTURE_NAME: Record<StructureKind, string> = {
   'satellite-uplink': 'Satellite uplink',
   'power-plant': 'Power plant',
   'air-defense': 'Missile defense',
+  market: 'Market',
+  storehouse: 'Storehouse',
 }
 
 /** One line of what each structure does, for the build info card. */
@@ -24,6 +26,8 @@ export const STRUCTURE_DESC: Record<StructureKind, string> = {
   'satellite-uplink': 'Enables satellite sweeps.',
   'power-plant': 'Feeds the power grid.',
   'air-defense': 'Detects and shoots down drones and munitions.',
+  market: 'Sells resources for credits; rents out surplus power.',
+  storehouse: 'Ore drop-off: miners deposit at the nearest one.',
 }
 
 export function displayBuildCost(spec: DroneSpec): { lithiumKg: number; plasticKg: number; credits: number } {

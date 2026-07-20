@@ -4,6 +4,8 @@ import {
   FOG_GRID,
   FOG_UNSEEN,
   FOG_VISIBLE,
+  MARKET_RATE,
+  POWER_EXPORT_RATE,
   STRUCTURE_BUILD,
   canAttack,
   canPlaceStructure,
@@ -133,6 +135,32 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
         // Batteries ship with a full missile rack.
         ...(cmd.kind === 'air-defense' ? { ammo: AIR_DEFENSE_AMMO_MAX } : {}),
       })
+      continue
+    }
+
+    if (cmd.type === 'sell') {
+      // Market trade: needs an own working market on a healthy grid.
+      const market = s.structures.find(
+        (st) => st.playerId === player.id && st.kind === 'market' && structureActive(s.tick, st),
+      )
+      if (!market) continue
+      const grid = powerStatus(s.structures, player.id, s.tick)
+      if (grid.used > grid.cap) continue
+      const kg = Math.min(Math.max(0, cmd.kg), player.economy[cmd.resource])
+      if (kg <= 0) continue
+      const payout = kg * MARKET_RATE[cmd.resource]
+      player.economy[cmd.resource] -= kg
+      player.economy.credits += payout
+      events.push({
+        type: 'resourceDelta',
+        playerId: player.id,
+        delta: { [cmd.resource]: -kg, credits: payout },
+      })
+      continue
+    }
+
+    if (cmd.type === 'setPowerExport') {
+      player.exportPower = cmd.on
       continue
     }
 
@@ -363,9 +391,20 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
         break
       }
       case 'returning': {
-        const home = s.structures.find(
-          (st) => st.playerId === d.playerId && (st.kind === 'refinery' || st.kind === 'centcomm'),
-        )
+        // Nearest drop-off wins: storehouses placed by the ore keep the
+        // haul loop short. Refinery and CENTCOM always accept too.
+        let home: StructureState | undefined
+        let homeD = Infinity
+        for (const st of s.structures) {
+          if (st.playerId !== d.playerId) continue
+          if (st.kind !== 'refinery' && st.kind !== 'centcomm' && st.kind !== 'storehouse') continue
+          if (!structureActive(s.tick, st)) continue
+          const dd = dist2D(st.pos, d.pos)
+          if (dd < homeD) {
+            homeD = dd
+            home = st
+          }
+        }
         if (!home) {
           d.mode = 'idle'
           break
@@ -759,6 +798,19 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
       player.economy.oilKg -= used
       player.economy.plasticKg += used * TUNING.plasticPerOilKg
     }
+  }
+
+  // Power export: rented grid surplus pays continuous credits while a
+  // working market stands and the grid itself is healthy.
+  for (const player of s.players) {
+    if (!player.exportPower || lowPower.get(player.id)) continue
+    const hasMarket = s.structures.some(
+      (st) => st.playerId === player.id && st.kind === 'market' && structureActive(s.tick, st),
+    )
+    if (!hasMarket) continue
+    const grid = powerStatus(s.structures, player.id, s.tick)
+    const surplus = Math.max(0, grid.cap - grid.used)
+    if (surplus > 0) player.economy.credits += surplus * POWER_EXPORT_RATE * DT
   }
 
   // Satellite energy (needs grid power) and sweep expiry.

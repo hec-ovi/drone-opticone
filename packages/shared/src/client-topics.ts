@@ -30,7 +30,11 @@ export interface ClientTopics extends Record<string, unknown> {
   thumbnails: ThumbnailSet
   'intent:build': { specId: string }
   'intent:construct': { kind: StructureKind }
+  'intent:sell': { resource: 'lithiumKg' | 'oilKg' | 'plasticKg'; kg: number }
+  'intent:powerExport': boolean
   'intent:sweepMode': boolean
+  /** fire an armed satellite sweep at a world point (minimap click) */
+  'intent:sweepAt': { x: number; z: number }
   'intent:restart': null
   'intent:focus': { x: number; z: number }
   /** right-click on the minimap: send the current selection there */

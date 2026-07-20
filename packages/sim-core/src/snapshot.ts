@@ -40,6 +40,7 @@ export function snapshot(s: MatchState, playerId: string): PlayerView {
     economy: player.economy,
     satellite: player.satellite,
     power: powerStatus(s.structures, playerId, s.tick),
+    powerExport: player.exportPower,
     ownDrones: s.drones.filter((d) => d.playerId === playerId),
     enemyDrones: s.drones.filter((d) => d.playerId !== playerId && visible(d.pos)),
     structures: s.structures.filter((st) => st.playerId === playerId || explored(st.pos)),

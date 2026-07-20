@@ -110,6 +110,39 @@ describe('app shell: new intents', () => {
     expect(shell.state.builds[0]!.structureId).toBe(factory.id)
   })
 
+  it('market intents: selling converts stock to credits, export toggles the sim flag', () => {
+    const { bus, shell } = rig()
+    shell.state.structures.push({
+      id: 'mkt1',
+      kind: 'market',
+      playerId: HUMAN,
+      pos: { x: 860, y: 0, z: 860 },
+      hp: 1600,
+      hpMax: 1600,
+    })
+    const credits0 = shell.state.players[0]!.economy.credits
+    bus.emit('intent:sell', { resource: 'plasticKg', kg: 50 })
+    shell.step()
+    expect(shell.state.players[0]!.economy.plasticKg).toBeCloseTo(50)
+    expect(shell.state.players[0]!.economy.credits).toBeGreaterThan(credits0)
+
+    bus.emit('intent:powerExport', true)
+    shell.step()
+    expect(shell.state.players[0]!.exportPower).toBe(true)
+  })
+
+  it('a sweepAt intent (minimap) fires the satellite and disarms sweep mode', () => {
+    const { bus, scene, shell } = rig()
+    bus.emit('intent:sweepMode', true)
+    const changes: boolean[] = []
+    bus.on('sweepModeChanged', (on) => changes.push(on))
+    bus.emit('intent:sweepAt', { x: 3500, z: 3500 })
+    expect(scene.mode).toBe('normal')
+    expect(changes).toEqual([false])
+    shell.step()
+    expect(shell.state.players[0]!.satellite.energy).toBeLessThan(100)
+  })
+
   it('minimap focus intents reach the scene camera', () => {
     const { bus, scene } = rig()
     bus.emit('intent:focus', { x: 1234, z: 987 })

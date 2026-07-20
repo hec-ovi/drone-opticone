@@ -46,6 +46,10 @@ export function structureColor(kind: StructureKind, own: boolean): number {
       return 0x8de26b
     case 'air-defense':
       return 0xf28f6b
+    case 'market':
+      return 0xe0c453
+    case 'storehouse':
+      return 0xc9b08a
   }
 }
 

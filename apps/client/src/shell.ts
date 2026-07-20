@@ -77,6 +77,20 @@ export class GameShell {
           this.sound?.play('build')
         }
       }),
+      this.bus.on('intent:sell', ({ resource, kg }) => {
+        this.queued.push({ type: 'sell', playerId: HUMAN, resource, kg })
+        this.sound?.play('click')
+      }),
+      this.bus.on('intent:powerExport', (on) => {
+        this.queued.push({ type: 'setPowerExport', playerId: HUMAN, on })
+        this.sound?.play('click')
+      }),
+      this.bus.on('intent:sweepAt', ({ x, z }) => {
+        this.queued.push({ type: 'satelliteSweep', playerId: HUMAN, center: { x, z } })
+        this.sound?.play('sweep')
+        this.scene.setInteractionMode('normal')
+        this.bus.emit('sweepModeChanged', false)
+      }),
       this.bus.on('intent:construct', ({ kind }) => {
         this.scene.setInteractionMode(`place:${kind}`)
         this.bus.emit('placeModeChanged', kind)

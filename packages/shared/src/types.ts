@@ -41,6 +41,8 @@ export type StructureKind =
   | 'satellite-uplink'
   | 'power-plant'
   | 'air-defense'
+  | 'market'
+  | 'storehouse'
 export type NodeKind = 'lithium' | 'oil'
 
 export type DroneMode = 'idle' | 'moving' | 'patrol' | 'attacking' | 'mining' | 'returning' | 'terminal'
@@ -137,6 +139,8 @@ export interface PlayerState {
   id: string
   economy: PlayerEconomy
   satellite: SatelliteState
+  /** renting grid surplus on the market for continuous credits */
+  exportPower: boolean
 }
 
 /** Fog cell values per player grid. */
@@ -187,6 +191,8 @@ export type Command =
   | { type: 'mine'; playerId: string; droneIds: string[]; nodeId: string }
   | { type: 'build'; playerId: string; structureId: string; specId: string }
   | { type: 'construct'; playerId: string; kind: StructureKind; at: Vec2 }
+  | { type: 'sell'; playerId: string; resource: 'lithiumKg' | 'oilKg' | 'plasticKg'; kg: number }
+  | { type: 'setPowerExport'; playerId: string; on: boolean }
   | { type: 'assignPolicy'; playerId: string; droneIds: string[]; policy: PolicySpec | null }
   | { type: 'satelliteSweep'; playerId: string; center: Vec2 }
   | { type: 'selfDestruct'; playerId: string; droneIds: string[] }
@@ -213,6 +219,8 @@ export interface PlayerView {
   satellite: SatelliteState
   /** power grid load vs capacity; used > cap means the base is browned out */
   power: { used: number; cap: number }
+  /** true while surplus power is being exported for credits */
+  powerExport: boolean
   ownDrones: DroneState[]
   enemyDrones: DroneState[]
   structures: StructureState[]

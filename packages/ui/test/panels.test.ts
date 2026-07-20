@@ -62,6 +62,24 @@ describe('C-05 minimap', () => {
     expect(focuses.length).toBe(0)
   })
 
+  it('an armed sweep fires from a minimap click instead of moving the camera', async () => {
+    const user = userEvent.setup()
+    bus.emit('view', humanView())
+    bus.emit('sweepModeChanged', true)
+    const sweeps: { x: number; z: number }[] = []
+    const focuses: { x: number; z: number }[] = []
+    bus.on('intent:sweepAt', (s) => sweeps.push(s))
+    bus.on('intent:focus', (f) => focuses.push(f))
+    await user.pointer({ keys: '[MouseLeft]', target: screen.getByRole('img', { name: 'minimap' }) })
+    expect(sweeps.length).toBe(1)
+    expect(focuses.length).toBe(0)
+
+    // Disarmed again: clicks go back to camera moves.
+    bus.emit('sweepModeChanged', false)
+    await user.pointer({ keys: '[MouseLeft]', target: screen.getByRole('img', { name: 'minimap' }) })
+    expect(focuses.length).toBe(1)
+  })
+
   it('the minimap is a pure map: no title, no status text, just the canvas', () => {
     bus.emit('view', humanView())
     bus.emit('sweepModeChanged', true)
@@ -502,6 +520,71 @@ describe('C-05 cursor tooltip', () => {
 
     await user.unhover(screen.getByRole('button', { name: 'Stop' }))
     expect(tip.style.display).toBe('none')
+  })
+})
+
+describe('C-05 market panel', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  const marketView = () =>
+    humanView((v) => {
+      v.structures.push({
+        id: 'mkt1',
+        kind: 'market',
+        playerId: 'human',
+        pos: { x: 860, y: 0, z: 860 },
+        hp: 1600,
+        hpMax: 1600,
+      })
+    })
+
+  it('appears with the market selected and sells lots as intents', async () => {
+    const user = userEvent.setup()
+    const view = marketView()
+    bus.emit('view', view)
+    const panel = document.querySelector('.market-panel') as HTMLElement
+    expect(panel.style.display).toBe('none')
+    bus.emit('selection', { drones: [], structures: [view.structures.at(-1)!], nodes: [] })
+    expect(panel.style.display).not.toBe('none')
+
+    const sells: { resource: string; kg: number }[] = []
+    bus.on('intent:sell', (s) => sells.push(s))
+    await user.click(screen.getByRole('button', { name: 'Sell plastic' }))
+    expect(sells).toEqual([{ resource: 'plasticKg', kg: 50 }])
+
+    // Empty stockpile: the lot button locks.
+    bus.emit('view', humanView((v) => {
+      v.structures.push(view.structures.at(-1)!)
+      v.economy.oilKg = 0
+    }))
+    expect(screen.getByRole('button', { name: 'Sell oil' }).getAttribute('aria-disabled')).toBe('true')
+  })
+
+  it('the export toggle publishes intents and reflects the sim flag', async () => {
+    const user = userEvent.setup()
+    const view = marketView()
+    bus.emit('view', view)
+    bus.emit('selection', { drones: [], structures: [view.structures.at(-1)!], nodes: [] })
+
+    const flips: boolean[] = []
+    bus.on('intent:powerExport', (on) => flips.push(on))
+    const toggle = () => screen.getByRole('button', { name: 'Toggle power export' })
+    expect(toggle().textContent).toContain('EXPORT POWER')
+    await user.click(toggle())
+    expect(flips).toEqual([true])
+
+    bus.emit('view', humanView((v) => {
+      v.structures.push(view.structures.at(-1)!)
+      v.powerExport = true
+    }))
+    expect(toggle().textContent).toContain('EXPORTING POWER')
+    expect(toggle().getAttribute('aria-pressed')).toBe('true')
   })
 })
 

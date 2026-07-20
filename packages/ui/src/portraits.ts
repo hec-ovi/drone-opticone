@@ -294,6 +294,31 @@ function structureArt(kind: StructureKind): string {
   <path d="M98 88V56m-5 6h10m-8-8h6" stroke="${HULL_LIGHT}" stroke-width="2"/>
   ${led(98, 50, '#63e6c4', 0.2)}
   <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>`
+    case 'market':
+      return `
+  <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>
+  <rect x="30" y="58" width="42" height="30" fill="${HULL}" stroke="${HULL_LIGHT}" stroke-width="1.2"/>
+  <rect x="27" y="54" width="48" height="6" fill="var(--accent,#3ec6ff)" opacity="0.75"/>
+  <rect x="76" y="70" width="7" height="7" fill="${HULL_LIGHT}"/>
+  <rect x="84" y="76" width="6" height="6" fill="${HULL}"/>
+  <line x1="86" y1="88" x2="86" y2="40" stroke="${HULL_DARK}" stroke-width="2.4"/>
+  <g class="p-rotor" style="transform-origin:86px 32px;animation-duration:2.4s">
+    <circle cx="86" cy="32" r="7" fill="none" stroke="#e0c453" stroke-width="2.4"/>
+    <path d="M86 27.5v9M83 29c4-2 4 8 6 6" stroke="#e0c453" stroke-width="1.6" fill="none"/>
+  </g>
+  ${led(86, 32, '#e0c453', 0.3)}
+  ${led(40, 66, 'var(--accent,#3ec6ff)', 0.6)}`
+    case 'storehouse':
+      return `
+  <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>
+  <rect x="30" y="52" width="14" height="36" rx="6" fill="${HULL_LIGHT}"/>
+  <rect x="48" y="52" width="14" height="36" rx="6" fill="${HULL}"/>
+  <rect x="68" y="74" width="8" height="8" fill="${HULL_LIGHT}"/>
+  <rect x="78" y="78" width="7" height="7" fill="${HULL}"/>
+  <rect x="70" y="64" width="7" height="7" fill="${HULL}"/>
+  <circle cx="84" cy="60" r="6" fill="none" stroke="var(--accent,#3ec6ff)" stroke-width="1.4" class="p-led"/>
+  ${led(37, 46, '#c9b08a', 0.2)}
+  ${led(55, 46, '#c9b08a', 0.7)}`
     case 'air-defense':
       return `
   <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>

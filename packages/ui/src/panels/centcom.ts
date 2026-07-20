@@ -101,7 +101,7 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     image.style.display = 'none'
     const fallback = el('span', 'tile-fallback tile-structure-art', btn)
     fallback.innerHTML = structurePortraitSvg(kind)
-    const roleTag = POWER_CAP[kind] ? 'PWR' : kind === 'air-defense' ? 'DEF' : 'BLD'
+    const roleTag = POWER_CAP[kind] ? 'PWR' : kind === 'air-defense' ? 'DEF' : kind === 'market' ? 'MKT' : 'BLD'
     const tag = el('span', 'tile-tag role-support', btn)
     tag.textContent = roleTag
     const show = () => {

@@ -509,6 +509,83 @@ export function makeStructureObject(kind: StructureKind, own: boolean): THREE.Gr
       }
       break
     }
+    case 'market': {
+      // Trade hub: exchange hall, antenna, and a spinning holo credit disc.
+      const slab = box(44, 3, 36, hullDark)
+      slab.position.y = 1.5
+      group.add(slab)
+      const hall = box(26, 13, 20, hull)
+      hall.position.set(-4, 8, 0)
+      group.add(hall)
+      const awning = box(28, 1.5, 24, accentMat)
+      awning.position.set(-4, 14.5, 0)
+      group.add(awning)
+      for (const [dx, dz] of [
+        [14, 10],
+        [17, 4],
+        [14, -4],
+      ] as const) {
+        const crate = box(4.5, 4.5, 4.5, hullLight)
+        crate.position.set(dx, 3.5, dz)
+        crate.rotation.y = dx * 0.4
+        group.add(crate)
+      }
+      const mast = cyl(0.9, 0.9, 16, 6, hullDark)
+      mast.position.set(-14, 22, -6)
+      group.add(mast)
+      const holo = new THREE.Mesh(
+        new THREE.CylinderGeometry(5, 5, 0.8, 18),
+        new THREE.MeshStandardMaterial({
+          color: 0xe0c453,
+          emissive: 0xe0c453,
+          emissiveIntensity: 0.9,
+          transparent: true,
+          opacity: 0.85,
+        }),
+      )
+      holo.rotation.z = Math.PI / 2
+      holo.position.set(-14, 32, -6)
+      group.add(holo)
+      const glow = glowSprite(0xe0c453, 22)
+      glow.position.set(-14, 32, -6)
+      group.add(glow)
+      group.userData.animate = (_dt: number, elapsed: number) => {
+        holo.rotation.y = elapsed * 1.6
+        ;(holo.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.7 + Math.sin(elapsed * 2) * 0.25
+      }
+      break
+    }
+    case 'storehouse': {
+      // Forward depot: silo pair, crate rows, landing beacon for the haulers.
+      const slab = box(40, 3, 34, hullDark)
+      slab.position.y = 1.5
+      group.add(slab)
+      for (const dx of [-8, 4] as const) {
+        const silo = cyl(6, 6, 18, 12, hullLight)
+        silo.position.set(dx, 12, -6)
+        group.add(silo)
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(6, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), hull)
+        cap.position.set(dx, 21, -6)
+        group.add(cap)
+      }
+      for (let i = 0; i < 4; i++) {
+        const crate = box(4, 4, 4, i % 2 ? hull : hullLight)
+        crate.position.set(-12 + i * 7, 5, 10)
+        crate.rotation.y = i * 0.5
+        group.add(crate)
+      }
+      const pad = cyl(8, 8, 1.4, 16, hullDark)
+      pad.position.set(14, 2.4, 4)
+      group.add(pad)
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.3, 8, 8), std(accent, { emissive: accent }))
+      beacon.position.set(14, 5, 4)
+      group.add(beacon)
+      group.userData.animate = (_dt: number, elapsed: number) => {
+        const m = beacon.material as THREE.MeshStandardMaterial
+        m.emissiveIntensity = 0.4 + Math.max(0, Math.sin(elapsed * 3.2)) * 1
+      }
+      break
+    }
   }
   return group
 }

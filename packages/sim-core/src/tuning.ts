@@ -19,6 +19,8 @@ export const TUNING = {
     'satellite-uplink': 2000,
     'power-plant': 2400,
     'air-defense': 1800,
+    market: 1600,
+    storehouse: 1600,
   } satisfies Record<StructureKind, number>,
   /**
    * SAM battery: radar sight while powered; fires homing interceptor

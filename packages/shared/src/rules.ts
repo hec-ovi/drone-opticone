@@ -21,6 +21,8 @@ export const STRUCTURE_BUILD: Partial<Record<StructureKind, StructureBuild>> = {
   relay: { lithiumKg: 5, plasticKg: 15, credits: 250, timeS: 15 },
   'satellite-uplink': { lithiumKg: 20, plasticKg: 30, credits: 700, timeS: 40 },
   'air-defense': { lithiumKg: 15, plasticKg: 40, credits: 800, timeS: 35 },
+  market: { lithiumKg: 5, plasticKg: 30, credits: 600, timeS: 30 },
+  storehouse: { lithiumKg: 5, plasticKg: 25, credits: 300, timeS: 20 },
 }
 
 /**
@@ -35,6 +37,7 @@ export const POWER_USE: Partial<Record<StructureKind, number>> = {
   'satellite-uplink': 20,
   relay: 10,
   'air-defense': 15,
+  market: 10,
 }
 
 export interface PowerStatus {
@@ -47,6 +50,13 @@ export const AIR_DEFENSE_AMMO_MAX = 8
 
 /** Engagement radius of the air-defense battery, shared with the scene ring. */
 export const AIR_DEFENSE_RANGE_M = 500
+
+/** Market: posted prices in credits per kg, and the standard lot size. */
+export const MARKET_RATE = { lithiumKg: 3, oilKg: 1, plasticKg: 4 } as const
+export const MARKET_LOT_KG = 50
+
+/** Power export: credits per second per unit of rented grid surplus. */
+export const POWER_EXPORT_RATE = 0.1
 
 /** A structure under construction (readyAtTick in the future) does nothing yet. */
 export function structureActive(tick: number, st: { readyAtTick?: number }): boolean {

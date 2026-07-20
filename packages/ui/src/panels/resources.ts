@@ -1,6 +1,6 @@
 import type { Bus, ClientTopics, PlayerView } from '@opticone/shared'
 import { ICONS, iconEl } from '../icons'
-import { button, clockText, el, fmtPad } from '../dom'
+import { button, el, fmtPad } from '../dom'
 import { attachTooltip } from '../tooltip'
 
 /**
@@ -57,9 +57,6 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
   const windArrow = iconEl(ICONS.wind, 'icon wind-arrow')
   wind.appendChild(windArrow)
   const windValue = el('span', 'res-value', wind)
-  const clock = el('span', 'res clock-chip', status)
-  clock.appendChild(iconEl(ICONS.clock))
-  const clockValue = el('span', 'res-value', clock)
 
   const mute = button('sys-btn', status, 'toggle sound')
   mute.setAttribute('aria-pressed', 'false')
@@ -104,7 +101,12 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
         (st) => st.kind === 'refinery' && st.playerId === view.playerId && st.readyAtTick === undefined,
       )
     // Fixed-width readouts: values never shift the chips beside them.
-    credits.textContent = `Credits ${fmtPad(view.economy.credits)}`
+    const exporting =
+      view.powerExport &&
+      !brownout &&
+      view.structures.some((st) => st.kind === 'market' && st.playerId === view.playerId && st.readyAtTick === undefined)
+    const exportRate = exporting ? Math.max(0, view.power.cap - view.power.used) * 0.1 : 0
+    credits.textContent = `Credits ${fmtPad(view.economy.credits)}${exporting ? ` +${exportRate.toFixed(1)}/s` : ''}`
     lithium.textContent = `Lithium ${fmtPad(view.economy.lithiumKg)} kg`
     oil.textContent = `Oil ${fmtPad(view.economy.oilKg)} kg${cracking ? ' -1/s' : ''}`
     plastic.textContent = `Plastic ${fmtPad(view.economy.plasticKg)} kg${cracking ? ' +0.5/s' : ''}`
@@ -118,7 +120,6 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
     windValue.textContent = `Wind ${view.wind.speedMps.toFixed(1)} m/s`
     wind.classList.toggle('warn', view.wind.speedMps > 9)
     windArrow.style.transform = `rotate(${(view.wind.dirRad * 180) / Math.PI}deg)`
-    clockValue.textContent = clockText(view.tick)
   })
   return () => {
     off()

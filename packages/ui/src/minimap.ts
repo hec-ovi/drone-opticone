@@ -160,6 +160,9 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
     if (at) bus.emit('intent:focus', at)
   }
 
+  let sweepArmed = false
+  const offSweepMode = bus.on('sweepModeChanged', (on: boolean) => (sweepArmed = on))
+
   let dragging = false
   canvas.addEventListener('pointerdown', (ev) => {
     // Right-click: send the current selection there, RTS style.
@@ -173,6 +176,16 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
       return
     }
     if (ev.button !== 0) return
+    // An armed satellite sweep fires where the map is clicked.
+    if (sweepArmed) {
+      const at = clickWorld(ev)
+      if (at) {
+        orderPing = { x: at.x, z: at.z, t: Date.now() }
+        bus.emit('intent:sweepAt', at)
+        draw()
+      }
+      return
+    }
     dragging = true
     emitFocus(ev)
   })
@@ -193,5 +206,6 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
   return () => {
     offView()
     offPose()
+    offSweepMode()
   }
 }
