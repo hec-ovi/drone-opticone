@@ -280,6 +280,20 @@ function structureArt(kind: StructureKind): string {
   <g class="p-rotor" style="transform-origin:67px 46px;animation-duration:4s">
     <line x1="67" y1="46" x2="67" y2="30" stroke="var(--accent,#3ec6ff)" stroke-width="1.4" opacity="0.6"/>
   </g>`
+    case 'power-plant':
+      return `
+  <path d="M28 88C38 66 36 48 40 34h14c4 14 2 32 12 54Z" fill="${HULL}" stroke="${HULL_LIGHT}" stroke-width="1.4"/>
+  <ellipse cx="47" cy="34" rx="7" ry="2.4" fill="${HULL_DARK}"/>
+  <circle class="p-led" cx="47" cy="24" r="5" fill="#d7e2e8" opacity="0.5"/>
+  <circle class="p-led" style="animation-delay:0.6s" cx="53" cy="16" r="3.6" fill="#d7e2e8" opacity="0.4"/>
+  <rect x="66" y="66" width="28" height="22" fill="${HULL}" stroke="${HULL_LIGHT}" stroke-width="1.2"/>
+  <rect x="66" y="62" width="28" height="4" fill="var(--accent,#3ec6ff)" opacity="0.7"/>
+  <rect x="70" y="72" width="6" height="12" rx="2" fill="#63e6c4" class="p-led"/>
+  <rect x="79" y="72" width="6" height="12" rx="2" fill="#63e6c4" class="p-led" style="animation-delay:0.4s"/>
+  <rect x="88" y="72" width="4" height="12" rx="2" fill="#63e6c4" class="p-led" style="animation-delay:0.8s"/>
+  <path d="M98 88V56m-5 6h10m-8-8h6" stroke="${HULL_LIGHT}" stroke-width="2"/>
+  ${led(98, 50, '#63e6c4', 0.2)}
+  <ellipse cx="60" cy="90" rx="36" ry="4" fill="${HULL_DARK}" opacity="0.6"/>`
   }
 }
 

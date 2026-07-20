@@ -4,7 +4,13 @@ import {
   FOG_GRID,
   FOG_UNSEEN,
   FOG_VISIBLE,
+  STRUCTURE_BUILD,
+  canAttack,
+  canPlaceStructure,
+  isKamikazeSpec,
+  powerStatus,
   rngRange,
+  structureActive,
   terrainHeight,
   type DroneSpec,
   type DroneState,
@@ -37,7 +43,7 @@ function targetAltitude(sp: DroneSpec): number {
 }
 
 function isKamikaze(sp: DroneSpec): boolean {
-  return sp.class === 'loitering-munition' || (sp.class === 'multirotor' && sp.payloadKg > 0)
+  return isKamikazeSpec(sp)
 }
 
 function isWinged(sp: DroneSpec): boolean {
@@ -52,7 +58,7 @@ function entityRadius(s: MatchState, id: string): number {
   return s.structures.some((st) => st.id === id) ? TUNING.structureRadiusM : TUNING.droneRadiusM
 }
 
-/** A drone is linked while within controlRangeM of an own centcomm or relay. */
+/** A drone is linked while within controlRangeM of an own active centcomm or relay. */
 function hasControlLink(s: MatchState, d: DroneState): boolean {
   const range = spec(s, d).controlRangeM
   if (range <= 0) return false
@@ -60,6 +66,7 @@ function hasControlLink(s: MatchState, d: DroneState): boolean {
     (st) =>
       st.playerId === d.playerId &&
       (st.kind === 'centcomm' || st.kind === 'relay') &&
+      structureActive(s.tick, st) &&
       dist2D(st.pos, d.pos) <= range,
   )
 }
@@ -74,7 +81,7 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
         (st) => st.id === cmd.structureId && st.playerId === cmd.playerId && st.kind === 'factory',
       )
       const sp = s.catalog[cmd.specId]
-      if (!factory || !sp) continue
+      if (!factory || !sp || !structureActive(s.tick, factory)) continue
       const cost = buildCost(sp)
       const eco = player.economy
       if (eco.lithiumKg < cost.lithiumKg || eco.plasticKg < cost.plasticKg || eco.credits < cost.credits) continue
@@ -86,18 +93,51 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
         playerId: player.id,
         delta: { lithiumKg: -cost.lithiumKg, plasticKg: -cost.plasticKg, credits: -cost.credits },
       })
+      // One assembly line per factory: a new job starts when the queue drains.
+      const queueTail = s.builds
+        .filter((b) => b.structureId === factory.id)
+        .reduce((m, b) => Math.max(m, b.readyAtTick), s.tick)
       s.builds.push({
         id: `b${s.nextEntityId++}`,
         playerId: player.id,
         structureId: factory.id,
         specId: sp.id,
-        readyAtTick: s.tick + Math.round(buildTimeS(sp) / DT),
+        readyAtTick: queueTail + Math.round(buildTimeS(sp) / DT),
+      })
+      continue
+    }
+
+    if (cmd.type === 'construct') {
+      const build = STRUCTURE_BUILD[cmd.kind]
+      if (!build) continue
+      const eco = player.economy
+      if (eco.lithiumKg < build.lithiumKg || eco.plasticKg < build.plasticKg || eco.credits < build.credits) continue
+      if (!canPlaceStructure(s, player.id, cmd.at.x, cmd.at.z)) continue
+      eco.lithiumKg -= build.lithiumKg
+      eco.plasticKg -= build.plasticKg
+      eco.credits -= build.credits
+      events.push({
+        type: 'resourceDelta',
+        playerId: player.id,
+        delta: { lithiumKg: -build.lithiumKg, plasticKg: -build.plasticKg, credits: -build.credits },
+      })
+      const hpMax = TUNING.structureHp[cmd.kind]
+      s.structures.push({
+        id: `s${s.nextEntityId++}`,
+        kind: cmd.kind,
+        playerId: player.id,
+        pos: { x: cmd.at.x, y: ground(s, cmd.at.x, cmd.at.z), z: cmd.at.z },
+        hp: Math.round(hpMax * 0.15),
+        hpMax,
+        readyAtTick: s.tick + Math.round(build.timeS / DT),
       })
       continue
     }
 
     if (cmd.type === 'satelliteSweep') {
-      const uplink = s.structures.find((st) => st.playerId === player.id && st.kind === 'satellite-uplink')
+      const uplink = s.structures.find(
+        (st) => st.playerId === player.id && st.kind === 'satellite-uplink' && structureActive(s.tick, st),
+      )
       if (!uplink) continue
       if (player.satellite.energy < TUNING.satellite.sweepCost) continue
       player.satellite.energy -= TUNING.satellite.sweepCost
@@ -148,7 +188,7 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
           break
         case 'attack':
           if (!findEntity(s, cmd.targetId)) break
-          if (!isKamikaze(sp) && !(sp.class === 'fixed-wing' && sp.payloadKg > 0)) break
+          if (!canAttack(sp)) break
           d.mode = 'attacking'
           d.targetId = cmd.targetId
           d.dest = null
@@ -507,9 +547,31 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
 
   applyCommands(s, commands, events)
 
+  // Power audit: over the cap the base browns out. Frozen factory lines,
+  // no oil cracking, no satellite charge, until load drops or a plant rises.
+  const lowPower = new Map<string, boolean>()
+  for (const player of s.players) {
+    const p = powerStatus(s.structures, player.id, s.tick)
+    lowPower.set(player.id, p.used > p.cap)
+  }
+
+  // Construction sites: hull grows while the crews work, then the structure
+  // powers on (reported as a spawn so clients hear about it).
+  for (const st of s.structures) {
+    if (st.readyAtTick === undefined) continue
+    const build = STRUCTURE_BUILD[st.kind]
+    if (s.tick < st.readyAtTick) {
+      if (build) st.hp = Math.min(st.hpMax, st.hp + (st.hpMax * 0.85 * DT) / build.timeS)
+    } else {
+      delete st.readyAtTick
+      events.push({ type: 'spawned', entityId: st.id, playerId: st.playerId, specId: st.kind })
+    }
+  }
+
   // Finished builds spawn at their factory.
   const pending: MatchState['builds'] = []
   for (const job of s.builds) {
+    if (lowPower.get(job.playerId)) job.readyAtTick++
     if (s.tick < job.readyAtTick) {
       pending.push(job)
       continue
@@ -556,9 +618,12 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
   s.drones = s.drones.filter((d) => d.hp > 0)
   s.nodes = s.nodes.filter((n) => n.remainingKg > 0)
 
-  // Refinery converts oil to plastic.
+  // Refinery converts oil to plastic (needs grid power).
   for (const player of s.players) {
-    const hasRefinery = s.structures.some((st) => st.playerId === player.id && st.kind === 'refinery')
+    if (lowPower.get(player.id)) continue
+    const hasRefinery = s.structures.some(
+      (st) => st.playerId === player.id && st.kind === 'refinery' && structureActive(s.tick, st),
+    )
     if (!hasRefinery) continue
     const used = Math.min(player.economy.oilKg, TUNING.refineryOilKgPerS * DT)
     if (used > 0) {
@@ -567,12 +632,14 @@ export function tick(input: MatchState, commands: IssuedCommand[]): TickResult {
     }
   }
 
-  // Satellite energy and sweep expiry.
+  // Satellite energy (needs grid power) and sweep expiry.
   for (const player of s.players) {
-    player.satellite.energy = Math.min(
-      TUNING.satellite.energyMax,
-      player.satellite.energy + TUNING.satellite.regenPerS * DT,
-    )
+    if (!lowPower.get(player.id)) {
+      player.satellite.energy = Math.min(
+        TUNING.satellite.energyMax,
+        player.satellite.energy + TUNING.satellite.regenPerS * DT,
+      )
+    }
     player.satellite.sweeps = player.satellite.sweeps.filter((sw) => sw.untilTick > s.tick)
   }
 

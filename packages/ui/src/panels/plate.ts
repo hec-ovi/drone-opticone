@@ -18,7 +18,7 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
   const portraitSlot = el('div', 'plate-portrait', plate)
   const infoCol = el('div', 'plate-info', plate)
   const empty = el('p', 'selection-empty', plate)
-  empty.textContent = 'Nothing selected. Select the factory to build drones.'
+  empty.textContent = 'Nothing selected. Factory builds drones; CENTCOM constructs buildings.'
 
   let catalog: PlayerView['catalog'] = {}
   let playerId = ''
@@ -151,6 +151,10 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
       const sub = el('p', 'plate-sub', infoCol)
       const tag = el('span', `tag${hostile ? ' tag-hostile' : ''}`, sub)
       tag.textContent = hostile ? 'HOSTILE' : 'structure'
+      if (structure.readyAtTick !== undefined) {
+        const building = el('span', 'tag tag-policy', sub)
+        building.textContent = 'CONSTRUCTING'
+      }
       numbers(
         infoCol,
         ICONS.hp,
@@ -168,7 +172,9 @@ export function selectionPanel(root: HTMLElement, bus: Bus<ClientTopics>): () =>
                 ? 'Cracks stored oil into plastic.'
                 : structure.kind === 'relay'
                   ? 'Extends the control link.'
-                  : 'Lose this and the match is over.'
+                  : structure.kind === 'power-plant'
+                    ? 'Feeds the power grid.'
+                    : 'Constructs buildings; lose it and the match is over.'
       }
       return
     }

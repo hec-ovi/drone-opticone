@@ -9,6 +9,7 @@ export const TUNING = {
     factory: 2000,
     relay: 800,
     'satellite-uplink': 1000,
+    'power-plant': 1200,
   } satisfies Record<StructureKind, number>,
   structureRadiusM: 20,
   droneRadiusM: 2,

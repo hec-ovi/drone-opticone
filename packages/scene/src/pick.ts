@@ -1,5 +1,5 @@
 import { Vector3, type PerspectiveCamera } from 'three/webgpu'
-import type { PlayerView, Vec3 } from '@opticone/shared'
+import { canAttack, canMine, type PlayerView, type Vec3 } from '@opticone/shared'
 
 /**
  * Pure picking math (no raycasting against meshes, so it stays testable
@@ -63,4 +63,41 @@ export function classifyPick(view: PlayerView, point: Vec3, tolerance: number): 
   const node = nearestPickable(point, view.nodes, Math.max(tolerance, BUILDING_PICK_M))
   if (node) return { kind: 'node', id: node.id, point }
   return { kind: 'ground', id: null, point }
+}
+
+export type HoverVerb = 'attack' | 'mine' | 'move' | 'invalid' | 'none'
+
+export interface HoverState {
+  verb: HoverVerb
+  targetId: string | null
+  targetKind: PickTarget['kind']
+}
+
+/**
+ * What a right-click would do at this point given the current selection:
+ * 'attack' / 'mine' when a selected unit can actually take the order,
+ * 'invalid' when hovering a target none of the selection can act on,
+ * 'move' for plain ground, 'none' when nothing orderable is selected.
+ */
+export function hoverIntent(
+  view: PlayerView,
+  selectedIds: ReadonlySet<string>,
+  point: Vec3,
+  tolerance: number,
+): HoverState {
+  const own = view.ownDrones.filter((d) => selectedIds.has(d.id))
+  if (own.length === 0) return { verb: 'none', targetId: null, targetKind: 'ground' }
+  const target = classifyPick(view, point, tolerance)
+  const anySpec = (test: (spec: NonNullable<PlayerView['catalog'][string]>) => boolean) =>
+    own.some((d) => {
+      const spec = view.catalog[d.specId]
+      return spec !== undefined && test(spec)
+    })
+  if (target.kind === 'enemy' && target.id) {
+    return { verb: anySpec(canAttack) ? 'attack' : 'invalid', targetId: target.id, targetKind: target.kind }
+  }
+  if (target.kind === 'node' && target.id) {
+    return { verb: anySpec(canMine) ? 'mine' : 'invalid', targetId: target.id, targetKind: target.kind }
+  }
+  return { verb: 'move', targetId: target.id, targetKind: target.kind }
 }

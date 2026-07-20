@@ -393,6 +393,65 @@ export function makeStructureObject(kind: StructureKind, own: boolean): THREE.Gr
       }
       break
     }
+    case 'power-plant': {
+      // Lithium power plant: waisted cooling tower with drifting steam,
+      // turbine hall, and a rack of glowing lithium cells feeding the grid.
+      const slab = box(52, 3, 42, hullDark)
+      slab.position.y = 1.5
+      group.add(slab)
+      const towerLower = cyl(12, 17, 26, 14, hullLight)
+      towerLower.position.set(-12, 16, -4)
+      group.add(towerLower)
+      const towerUpper = cyl(14.5, 11.6, 14, 14, hull)
+      towerUpper.position.set(-12, 36, -4)
+      group.add(towerUpper)
+      const steam = glowSprite(0xd7e2e8, 34)
+      steam.position.set(-12, 48, -4)
+      group.add(steam)
+      const hall = box(24, 12, 16, hull)
+      hall.position.set(12, 7.5, -8)
+      group.add(hall)
+      const trim = box(24.8, 1.6, 16.8, accentMat)
+      trim.position.set(12, 13, -8)
+      group.add(trim)
+      // Lithium cell rack: the glow reads teal like the crystal nodes.
+      const cellMat = new THREE.MeshStandardMaterial({
+        color: 0x63e6c4,
+        emissive: 0x2fbf95,
+        emissiveIntensity: 0.9,
+        roughness: 0.3,
+        metalness: 0.2,
+      })
+      const cells: THREE.Mesh[] = []
+      for (let i = 0; i < 3; i++) {
+        const frame = cyl(3.2, 3.2, 9, 10, hullDark)
+        frame.position.set(4 + i * 8, 4.5, 12)
+        group.add(frame)
+        const cell = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 7, 10), cellMat)
+        cell.position.set(4 + i * 8, 9, 12)
+        group.add(cell)
+        cells.push(cell)
+      }
+      // Pylon carrying the feed to the base.
+      const pylon = box(2, 18, 2, hullLight)
+      pylon.position.set(24, 9, 8)
+      group.add(pylon)
+      const cross = box(10, 1.4, 1.4, hullLight)
+      cross.position.set(24, 16, 8)
+      group.add(cross)
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 8), std(accent, { emissive: accent }))
+      beacon.position.set(24, 19, 8)
+      group.add(beacon)
+      group.userData.animate = (_dt: number, elapsed: number) => {
+        cellMat.emissiveIntensity = 0.7 + Math.sin(elapsed * 2.2) * 0.35
+        const puff = 0.9 + Math.sin(elapsed * 0.8) * 0.2
+        steam.scale.setScalar(30 * puff)
+        ;(steam.material as THREE.SpriteMaterial).opacity = 0.16 + Math.sin(elapsed * 0.8) * 0.05
+        const m = beacon.material as THREE.MeshStandardMaterial
+        m.emissiveIntensity = 0.4 + Math.max(0, Math.sin(elapsed * 2.6)) * 0.9
+      }
+      break
+    }
   }
   return group
 }

@@ -11,6 +11,7 @@ export const STRUCTURE_NAME: Record<StructureKind, string> = {
   factory: 'Factory',
   relay: 'Relay mast',
   'satellite-uplink': 'Satellite uplink',
+  'power-plant': 'Power plant',
 }
 
 export function displayBuildCost(spec: DroneSpec): { lithiumKg: number; plasticKg: number; credits: number } {

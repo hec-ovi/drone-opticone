@@ -42,6 +42,7 @@ export const ICONS = {
   mute: svg('<path d="M4 9.4v5.2h3.6L13 19V5L7.6 9.4Z"/><path d="m16.4 9.6 4.8 4.8M21.2 9.6l-4.8 4.8"/>'),
   help: svg('<circle cx="12" cy="12" r="8.4"/><path d="M9.6 9.2A2.5 2.5 0 0 1 12 7.4c1.4 0 2.5 1 2.5 2.2 0 1.6-2.5 1.9-2.5 3.6"/><circle cx="12" cy="16.6" r="0.7" fill="currentColor"/>'),
   flag: svg('<path d="M6 21V4"/><path d="M6 5h11.4l-2.2 3.4 2.2 3.4H6"/>'),
+  power: svg('<path d="M13.2 2.8 5.6 13.4h4.6L10.8 21.2l7.6-10.6h-4.6Z"/>'),
 }
 
 /** Side-profile silhouettes per drone class for build cards and chips. */

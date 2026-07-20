@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createMatch, makeDrone, snapshot, tick } from '@opticone/sim-core'
 import { getCatalog, getDrone } from '@opticone/registry'
 import { evaluatePolicies, overlordAct } from '@opticone/agents'
-import type { MatchState } from '@opticone/shared'
+import { canPlaceStructure, type MatchState } from '@opticone/shared'
 
 const P = ['human', 'bot'] as [string, string]
 
@@ -98,5 +98,36 @@ describe('C-07 overlord', () => {
     expect(sawMining).toBe(true)
     const strikers = s.drones.filter((d) => d.playerId === 'bot' && d.specId === 'fpv-strike')
     expect(strikers.length).toBeGreaterThan(0)
+  })
+})
+
+describe('C-07 overlord construction', () => {
+  it('rebuilds the grid when browned out, on a legal site', () => {
+    const s = calm()
+    s.structures = s.structures.filter((st) => st.id !== 's-bot-power')
+    const view = snapshot(s, 'bot')
+    expect(view.power.used).toBeGreaterThan(view.power.cap)
+    const cmd = overlordAct(view, 'normal').find((c) => c.type === 'construct')
+    expect(cmd).toMatchObject({ type: 'construct', kind: 'power-plant', playerId: 'bot' })
+    if (cmd?.type === 'construct') {
+      expect(canPlaceStructure(view, 'bot', cmd.at.x, cmd.at.z)).toBe(true)
+    }
+  })
+
+  it('rebuilds a lost factory', () => {
+    const s = calm()
+    s.structures = s.structures.filter((st) => st.id !== 's-bot-factory')
+    const cmd = overlordAct(snapshot(s, 'bot'), 'normal').find((c) => c.type === 'construct')
+    expect(cmd).toMatchObject({ type: 'construct', kind: 'factory' })
+  })
+
+  it('never starts a second site while one is under construction', () => {
+    let s = calm()
+    s.structures = s.structures.filter((st) => st.id !== 's-bot-power')
+    const first = overlordAct(snapshot(s, 'bot'), 'normal').filter((c) => c.type === 'construct')
+    expect(first.length).toBe(1)
+    s = tick(s, first).state
+    const again = overlordAct(snapshot(s, 'bot'), 'normal')
+    expect(again.some((c) => c.type === 'construct')).toBe(false)
   })
 })

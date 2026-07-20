@@ -33,7 +33,7 @@ export interface DroneSpec {
   sourceUrl: string
 }
 
-export type StructureKind = 'centcomm' | 'refinery' | 'factory' | 'relay' | 'satellite-uplink'
+export type StructureKind = 'centcomm' | 'refinery' | 'factory' | 'relay' | 'satellite-uplink' | 'power-plant'
 export type NodeKind = 'lithium' | 'oil'
 
 export type DroneMode = 'idle' | 'moving' | 'patrol' | 'attacking' | 'mining' | 'returning' | 'terminal'
@@ -69,6 +69,8 @@ export interface StructureState {
   pos: Vec3
   hp: number
   hpMax: number
+  /** set while under construction; the structure does nothing until this tick */
+  readyAtTick?: number
 }
 
 export interface ResourceNodeState {
@@ -165,6 +167,7 @@ export type Command =
   | { type: 'attack'; playerId: string; droneIds: string[]; targetId: string }
   | { type: 'mine'; playerId: string; droneIds: string[]; nodeId: string }
   | { type: 'build'; playerId: string; structureId: string; specId: string }
+  | { type: 'construct'; playerId: string; kind: StructureKind; at: Vec2 }
   | { type: 'assignPolicy'; playerId: string; droneIds: string[]; policy: PolicySpec | null }
   | { type: 'satelliteSweep'; playerId: string; center: Vec2 }
   | { type: 'selfDestruct'; playerId: string; droneIds: string[] }
@@ -189,6 +192,8 @@ export interface PlayerView {
   wind: { dirRad: number; speedMps: number }
   economy: PlayerEconomy
   satellite: SatelliteState
+  /** power grid load vs capacity; used > cap means the base is browned out */
+  power: { used: number; cap: number }
   ownDrones: DroneState[]
   enemyDrones: DroneState[]
   structures: StructureState[]

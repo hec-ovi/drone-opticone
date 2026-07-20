@@ -8,6 +8,7 @@ import {
   type CameraPose,
   type ClientTopics,
   type PlayerView,
+  type StructureKind,
 } from '@opticone/shared'
 
 export const MINIMAP_SIZE = 208
@@ -175,9 +176,13 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
   const offSweep = bus.on('sweepModeChanged', (on: boolean) => {
     sweepState.textContent = on ? 'SWEEP ARMED - CLICK THE FIELD' : ''
   })
+  const offPlace = bus.on('placeModeChanged', (kind: StructureKind | null) => {
+    sweepState.textContent = kind ? 'PLACING - CLICK THE FIELD' : ''
+  })
   return () => {
     offView()
     offPose()
     offSweep()
+    offPlace()
   }
 }

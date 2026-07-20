@@ -1,6 +1,7 @@
-import type { Bus, ClientTopics, SimEvent } from '@opticone/shared'
+import type { Bus, ClientTopics, SimEvent, StructureKind } from '@opticone/shared'
 import { ICONS, iconEl } from '../icons'
 import { el } from '../dom'
+import { STRUCTURE_NAME } from '../display'
 
 /** Battle log: newest first, color-coded, capped at 8 lines. */
 export function eventLog(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
@@ -16,8 +17,10 @@ export function eventLog(root: HTMLElement, bus: Bus<ClientTopics>): () => void 
         return { text: `${e.entityId} down (${e.cause})`, icon: ICONS.alert, cls: 'ev-loss' }
       case 'batteryLow':
         return { text: `${e.droneId} battery below ${e.pct}%`, icon: ICONS.battery, cls: 'ev-warn' }
-      case 'spawned':
-        return { text: `${e.specId} ready`, icon: ICONS.spawn, cls: 'ev-good' }
+      case 'spawned': {
+        const structure = STRUCTURE_NAME[e.specId as StructureKind]
+        return { text: structure ? `${structure} online` : `${e.specId} ready`, icon: ICONS.spawn, cls: 'ev-good' }
+      }
       case 'matchEnded':
         return { text: `Match over: ${e.winner} wins`, icon: ICONS.flag, cls: 'ev-final' }
       default:

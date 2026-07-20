@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera } from 'three/webgpu'
-import { classifyPick, ndcToGround, nearestPickable } from '@opticone/scene'
+import { classifyPick, hoverIntent, ndcToGround, nearestPickable } from '@opticone/scene'
 import { snapshot, createMatch, tick } from '@opticone/sim-core'
 import { getCatalog } from '@opticone/registry'
 import type { PlayerView } from '@opticone/shared'
@@ -75,5 +75,44 @@ describe('C-04 pick: own structures and nodes', () => {
     })
     expect(classifyPick(view, { x: 3050, y: 0, z: 3000 }, 60)).toMatchObject({ kind: 'node', id: 'n1' })
     expect(classifyPick(view, { x: 500, y: 0, z: 500 }, 60)).toMatchObject({ kind: 'ground', id: null })
+  })
+})
+
+describe('C-04 hover intent (target feedback)', () => {
+  const catalog = getCatalog()
+  const view = {
+    playerId: 'me',
+    catalog,
+    ownDrones: [
+      { id: 'miner', specId: 'ore-miner', playerId: 'me', pos: { x: 1000, y: 30, z: 1000 } },
+      { id: 'fpv', specId: 'fpv-strike', playerId: 'me', pos: { x: 1100, y: 60, z: 1000 } },
+      { id: 'scout', specId: 'mavic3', playerId: 'me', pos: { x: 1200, y: 60, z: 1000 } },
+    ],
+    enemyDrones: [{ id: 'bandit', specId: 'fpv-strike', playerId: 'them', pos: { x: 2000, y: 60, z: 2000 } }],
+    structures: [],
+    nodes: [{ id: 'n1', kind: 'lithium', pos: { x: 3000, y: 0, z: 3000 } }],
+  } as unknown as PlayerView
+
+  it('attackers over an enemy read attack; non-attackers read invalid', () => {
+    const overEnemy = { x: 2010, y: 0, z: 2000 }
+    expect(hoverIntent(view, new Set(['fpv']), overEnemy, 60).verb).toBe('attack')
+    expect(hoverIntent(view, new Set(['fpv']), overEnemy, 60).targetId).toBe('bandit')
+    expect(hoverIntent(view, new Set(['scout']), overEnemy, 60).verb).toBe('invalid')
+    expect(hoverIntent(view, new Set(['miner']), overEnemy, 60).verb).toBe('invalid')
+    // A mixed group attacks if anyone in it can.
+    expect(hoverIntent(view, new Set(['miner', 'fpv']), overEnemy, 60).verb).toBe('attack')
+  })
+
+  it('miners over a node read mine; attackers read invalid', () => {
+    const overNode = { x: 3010, y: 0, z: 3000 }
+    expect(hoverIntent(view, new Set(['miner']), overNode, 60)).toMatchObject({ verb: 'mine', targetId: 'n1' })
+    expect(hoverIntent(view, new Set(['fpv']), overNode, 60).verb).toBe('invalid')
+  })
+
+  it('plain ground reads move; empty selection reads none', () => {
+    expect(hoverIntent(view, new Set(['fpv']), { x: 500, y: 0, z: 500 }, 60).verb).toBe('move')
+    expect(hoverIntent(view, new Set(), { x: 2010, y: 0, z: 2000 }, 60).verb).toBe('none')
+    // Enemy selected for intel only: nothing orderable, no false feedback.
+    expect(hoverIntent(view, new Set(['bandit']), { x: 3010, y: 0, z: 3000 }, 60).verb).toBe('none')
   })
 })

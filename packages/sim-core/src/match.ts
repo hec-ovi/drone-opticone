@@ -82,6 +82,7 @@ export function createMatch(
       structure(`s-${pid}-refinery`, 'refinery', pid, onGround(b.x + 180, b.z)),
       structure(`s-${pid}-factory`, 'factory', pid, onGround(b.x, b.z + 180)),
       structure(`s-${pid}-uplink`, 'satellite-uplink', pid, onGround(b.x - 180, b.z)),
+      structure(`s-${pid}-power`, 'power-plant', pid, onGround(b.x + 180, b.z + 180)),
     ]
   })
 

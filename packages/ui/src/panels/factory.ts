@@ -7,7 +7,8 @@ import { droneRole } from '../roles'
 /**
  * Factory panel: square build tiles showing the rendered model of each
  * airframe (class silhouette until thumbnails arrive), role-colored frames,
- * a hover info strip with full specs and costs, and the build queue.
+ * a hover info strip with full specs and costs. Queued builds show as a
+ * count badge on their tile plus a progress fill for the job on the line.
  * Contextual like any RTS production building: it only appears while the
  * player's own factory is selected.
  */
@@ -18,9 +19,11 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
   heading.textContent = 'Factory'
   const grid = el('div', 'build-grid', panel)
   const info = el('p', 'build-info-strip', panel)
-  info.textContent = 'Hover an airframe for specs. Click to build.'
-  const queueWrap = el('div', 'build-queue', panel)
-  const tiles = new Map<string, { btn: HTMLButtonElement; image: HTMLImageElement }>()
+  info.textContent = 'Hover an airframe for specs. Click to build; click again to queue more.'
+  const tiles = new Map<
+    string,
+    { btn: HTMLButtonElement; image: HTMLImageElement; count: HTMLElement; progress: HTMLElement }
+  >()
   let thumbs: ThumbnailSet | null = null
   let lastView: PlayerView | null = null
 
@@ -65,6 +68,10 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         }
         const tag = el('span', `tile-tag role-${role.tag.toLowerCase()}`, btn)
         tag.textContent = role.tag
+        const count = el('span', 'tile-count', btn)
+        count.style.display = 'none'
+        const progress = el('span', 'tile-progress', btn)
+        progress.style.width = '0%'
         btn.title = `${spec.name} - ${role.text}`
         const show = () => {
           if (lastView) info.textContent = describe(spec, lastView)
@@ -72,7 +79,7 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         btn.addEventListener('mouseenter', show)
         btn.addEventListener('focus', show)
         btn.addEventListener('click', () => bus.emit('intent:build', { specId: spec.id }))
-        tile = { btn, image }
+        tile = { btn, image, count, progress }
         tiles.set(spec.id, tile)
       }
       const cost = displayBuildCost(spec)
@@ -82,23 +89,27 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         view.economy.credits < cost.credits
     }
 
-    // Queue with live progress bars.
-    queueWrap.textContent = ''
+    // Queue on the tiles themselves: a count badge plus a progress fill for
+    // the job currently on the line (queued jobs sit at 0 until they start).
+    const queued = new Map<string, { count: number; nextReady: number }>()
     for (const job of view.builds) {
-      const spec = view.catalog[job.specId]
-      if (!spec) continue
-      const total = displayBuildTimeS(spec) * 20
-      const progress = Math.max(0, Math.min(1, 1 - (job.readyAtTick - view.tick) / total))
-      const row = el('div', 'queue-row', queueWrap)
-      const mini = el('span', 'queue-mini', row)
-      const src = thumbs?.drones[spec.id]
-      if (src) img('', mini, src)
-      else mini.appendChild(iconEl(droneClassIcon(spec.class), 'icon icon-s'))
-      const label = el('span', 'queue-name', row)
-      label.textContent = spec.name
-      const barBg = el('span', 'queue-bar', row)
-      const fill = el('span', 'queue-fill', barBg)
-      fill.style.width = `${(progress * 100).toFixed(0)}%`
+      const q = queued.get(job.specId) ?? { count: 0, nextReady: Infinity }
+      q.count++
+      q.nextReady = Math.min(q.nextReady, job.readyAtTick)
+      queued.set(job.specId, q)
+    }
+    for (const [specId, tile] of tiles) {
+      const q = queued.get(specId)
+      tile.count.style.display = q ? '' : 'none'
+      tile.count.textContent = q ? String(q.count) : ''
+      tile.btn.classList.toggle('queued', Boolean(q))
+      let pct = 0
+      if (q) {
+        const spec = view.catalog[specId]
+        const total = spec ? displayBuildTimeS(spec) * 20 : 0
+        if (total > 0) pct = Math.max(0, Math.min(1, 1 - (q.nextReady - view.tick) / total)) * 100
+      }
+      tile.progress.style.width = `${pct.toFixed(0)}%`
     }
   })
 

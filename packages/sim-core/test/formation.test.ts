@@ -64,7 +64,10 @@ describe('C-03 spacing and collisions', () => {
       { type: 'build', playerId: 'alpha', structureId: factory.id, specId: 'fpv-strike' },
     ]).state
     const before = s.drones.length
+    // One assembly line: the second job starts when the first finishes.
     for (let t = 0; t < 6 * 20; t++) s = tick(s, []).state
+    expect(s.drones.slice(before).length).toBe(1)
+    for (let t = 0; t < 5 * 20; t++) s = tick(s, []).state
     const spawned = s.drones.slice(before)
     expect(spawned.length).toBe(2)
     const [s1, s2] = spawned

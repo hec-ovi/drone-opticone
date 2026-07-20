@@ -1,4 +1,11 @@
-import type { IssuedCommand, PlayerView, Vec2 } from '@opticone/shared'
+import {
+  STRUCTURE_BUILD,
+  canPlaceStructure,
+  type IssuedCommand,
+  type PlayerView,
+  type StructureKind,
+  type Vec2,
+} from '@opticone/shared'
 
 export type Difficulty = 'easy' | 'normal' | 'hard'
 
@@ -17,8 +24,53 @@ export function overlordAct(view: PlayerView, difficulty: Difficulty = 'normal')
   const me = view.playerId
   const own = (kind: string) => view.structures.find((s) => s.playerId === me && s.kind === kind)
   const base = own('centcomm')
+  if (!base) return []
   const factory = own('factory')
-  if (!base || !factory) return []
+
+  // 0. Base infrastructure: keep the grid powered, rebuild lost production.
+  // Deterministic site search over fixed bearings around the CENTCOM.
+  const site = (): Vec2 | null => {
+    for (const [dx, dz] of [
+      [260, 80],
+      [80, 260],
+      [-260, 120],
+      [120, -260],
+      [300, 300],
+      [-160, -260],
+      [360, 0],
+      [0, 360],
+    ] as const) {
+      const x = base.pos.x + dx
+      const z = base.pos.z + dz
+      if (canPlaceStructure(view, me, x, z)) return { x, z }
+    }
+    return null
+  }
+  const affords = (kind: StructureKind) => {
+    const b = STRUCTURE_BUILD[kind]
+    return (
+      b !== undefined &&
+      view.economy.lithiumKg >= b.lithiumKg &&
+      view.economy.plasticKg >= b.plasticKg &&
+      view.economy.credits >= b.credits
+    )
+  }
+  const construct = (kind: StructureKind): boolean => {
+    const at = site()
+    if (!at || !affords(kind)) return false
+    commands.push({ type: 'construct', playerId: me, kind, at })
+    return true
+  }
+  // One construction crew: never start a second site while one is rising,
+  // otherwise a long brownout would drain the bank into duplicate plants.
+  const building = view.structures.some((s) => s.playerId === me && s.readyAtTick !== undefined)
+  if (!building) {
+    if (view.power.used > view.power.cap) construct('power-plant')
+    else if (!factory) construct('factory')
+    else if (!own('refinery')) construct('refinery')
+  }
+
+  if (!factory) return commands
 
   const enemyCorner: Vec2 =
     base.pos.x < view.mapSizeM / 2

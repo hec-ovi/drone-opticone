@@ -178,17 +178,27 @@ describe('C-05 build queue and menu flow', () => {
     mountUI(document.body, bus)
   })
 
-  it('queued builds show progress bars while the factory is selected', () => {
+  it('queued builds show a count badge and progress on the build tile', () => {
     const v0 = humanView((v) => {
       v.tick = 100
-      v.builds = [{ id: 'b1', playerId: 'human', structureId: 's', specId: 'fpv-strike', readyAtTick: 150 }]
+      v.builds = [
+        { id: 'b1', playerId: 'human', structureId: 's', specId: 'fpv-strike', readyAtTick: 150 },
+        { id: 'b2', playerId: 'human', structureId: 's', specId: 'fpv-strike', readyAtTick: 250 },
+      ]
     })
     bus.emit('view', v0)
     selectFactory(bus, v0)
-    const fill = document.querySelector('.queue-fill') as HTMLElement
-    expect(fill).not.toBeNull()
-    // fpv builds in 5s = 100 ticks; 50 remaining => 50%.
-    expect(fill.style.width).toBe('50%')
+    const tile = screen.getByRole('button', { name: 'Build FPV strike quad (7-inch class)' })
+    const count = tile.querySelector('.tile-count') as HTMLElement
+    expect(count.textContent).toBe('2')
+    expect(count.style.display).not.toBe('none')
+    // fpv builds in 5s = 100 ticks; the job on the line has 50 left => 50%.
+    expect((tile.querySelector('.tile-progress') as HTMLElement).style.width).toBe('50%')
+
+    // Queue drained: badge hides, progress resets.
+    bus.emit('view', humanView((v) => (v.builds = [])))
+    expect(count.style.display).toBe('none')
+    expect((tile.querySelector('.tile-progress') as HTMLElement).style.width).toBe('0%')
   })
 
   it('the start menu deploys a match with the chosen difficulty', async () => {
@@ -229,6 +239,63 @@ describe('C-05 build queue and menu flow', () => {
     expect(document.querySelector('.wind-chip')!.classList.contains('warn')).toBe(true)
     bus.emit('view', humanView((v) => (v.wind.speedMps = 4)))
     expect(document.querySelector('.wind-chip')!.classList.contains('warn')).toBe(false)
+  })
+})
+
+describe('C-05 construction panel and power', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('appears with the CENTCOM selected and emits construct intents', async () => {
+    const user = userEvent.setup()
+    const view = humanView()
+    bus.emit('view', view)
+    const panel = document.querySelector('.construct-menu') as HTMLElement
+    expect(panel.style.display).toBe('none')
+
+    const cc = view.structures.find((st) => st.kind === 'centcomm' && st.playerId === 'human')!
+    bus.emit('selection', { drones: [], structures: [cc], nodes: [] })
+    expect(panel.style.display).not.toBe('none')
+
+    const intents: string[] = []
+    bus.on('intent:construct', ({ kind }) => intents.push(kind))
+    await user.click(screen.getByRole('button', { name: 'Construct Power plant' }))
+    expect(intents).toEqual(['power-plant'])
+
+    // Placement armed: the tile lights up and the strip explains the flow.
+    bus.emit('placeModeChanged', 'power-plant')
+    expect(panel.querySelector('.build-tile.placing')).not.toBeNull()
+    expect(panel.textContent).toContain('Placing Power plant')
+    bus.emit('placeModeChanged', null)
+    expect(panel.querySelector('.build-tile.placing')).toBeNull()
+
+    // Deselecting hides the panel again.
+    bus.emit('selection', { drones: [], structures: [], nodes: [] })
+    expect(panel.style.display).toBe('none')
+  })
+
+  it('structure tiles disable when the bank cannot cover them', () => {
+    const view = humanView((v) => (v.economy.credits = 0))
+    bus.emit('view', view)
+    const cc = view.structures.find((st) => st.kind === 'centcomm' && st.playerId === 'human')!
+    bus.emit('selection', { drones: [], structures: [cc], nodes: [] })
+    expect(screen.getByRole('button', { name: 'Construct Factory' })).toBeDisabled()
+    bus.emit('view', humanView())
+    expect(screen.getByRole('button', { name: 'Construct Factory' })).toBeEnabled()
+  })
+
+  it('the resource strip shows grid power and flags brownouts', () => {
+    bus.emit('view', humanView())
+    const value = document.querySelector('.res-power .res-value') as HTMLElement
+    expect(value.textContent).toBe('Power 75/100')
+    bus.emit('view', humanView((v) => (v.power = { used: 95, cap: 40 })))
+    expect(value.textContent).toBe('LOW POWER 95/40')
+    expect(value.closest('.res')!.classList.contains('warn')).toBe(true)
   })
 })
 

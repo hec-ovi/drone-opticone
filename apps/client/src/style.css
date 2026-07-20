@@ -175,7 +175,13 @@ button:disabled {
 .res-lithium .icon { color: var(--teal); }
 .res-oil .icon { color: #c9a34a; }
 .res-plastic .icon { color: #b7c0c8; }
+.res-power .icon { color: #ffd27a; }
 .res-sat .icon { color: #9a7bff; }
+
+.res.warn .res-value,
+.res.warn .icon {
+  color: var(--warn);
+}
 
 .console-status {
   margin-left: auto;
@@ -736,65 +742,50 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
-.build-queue {
-  flex: none;
-  margin-top: 5px;
-  max-height: 52px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.queue-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-}
-
-.queue-mini {
+/* Queue feedback lives on the tiles: count badge + progress line. */
+.tile-count {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
   display: inline-flex;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border: 1px solid var(--line);
-  background: #101a24;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #08131c;
+  background: var(--teal);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(94, 231, 200, 0.55);
+  z-index: 2;
 }
 
-.queue-mini img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.queue-mini .icon {
-  margin: auto;
-  color: var(--teal);
-}
-
-.queue-name {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-dim);
-}
-
-.queue-bar {
-  flex: none;
-  width: 74px;
-  height: 6px;
-  background: #12202e;
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-
-.queue-fill {
-  display: block;
-  height: 100%;
+.tile-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
   background: linear-gradient(90deg, var(--accent), var(--teal));
   transition: width 0.2s linear;
+  z-index: 2;
+}
+
+.build-tile.queued {
+  border-color: var(--teal);
+}
+
+/* ------------------------------------------------------ construction menu */
+
+.build-tile.placing {
+  border-color: #57e389;
+  box-shadow: 0 0 14px rgba(87, 227, 137, 0.5), inset 0 0 10px rgba(87, 227, 137, 0.2);
+}
+
+.structure-tile .tile-fallback {
+  inset: 2px;
 }
 
 /* -------------------------------------------------------------- eventlog */

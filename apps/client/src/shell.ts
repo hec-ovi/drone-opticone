@@ -41,10 +41,22 @@ export class GameShell {
 
     this.scene.onCommand((cmd) => {
       this.queued.push(cmd)
-      this.sound?.play(cmd.type === 'satelliteSweep' ? 'sweep' : 'click')
+      this.sound?.play(cmd.type === 'satelliteSweep' ? 'sweep' : cmd.type === 'construct' ? 'build' : 'click')
       if (cmd.type === 'satelliteSweep') {
         this.scene.setInteractionMode('normal')
         this.bus.emit('sweepModeChanged', false)
+      }
+      if (cmd.type === 'construct') {
+        this.scene.setInteractionMode('normal')
+        this.bus.emit('placeModeChanged', null)
+      }
+    })
+    // The scene can drop out of sweep/placement itself (Esc, right-click);
+    // mirror that into the bus so armed buttons and hints reset.
+    this.scene.onModeChange((mode) => {
+      if (mode === 'normal') {
+        this.bus.emit('sweepModeChanged', false)
+        this.bus.emit('placeModeChanged', null)
       }
     })
     this.scene.onSelection((selection) => {
@@ -55,15 +67,26 @@ export class GameShell {
 
     this.offs.push(
       this.bus.on('intent:build', ({ specId }) => {
-        const factory = this.state.structures.find((s) => s.playerId === HUMAN && s.kind === 'factory')
+        // Route to the selected factory so multi-factory bases queue where
+        // the player is looking; fall back to the first own factory.
+        const selected = this.selection.structures.find((s) => s.playerId === HUMAN && s.kind === 'factory')
+        const factory =
+          selected ?? this.state.structures.find((s) => s.playerId === HUMAN && s.kind === 'factory')
         if (factory) {
           this.queued.push({ type: 'build', playerId: HUMAN, structureId: factory.id, specId })
           this.sound?.play('build')
         }
       }),
+      this.bus.on('intent:construct', ({ kind }) => {
+        this.scene.setInteractionMode(`place:${kind}`)
+        this.bus.emit('placeModeChanged', kind)
+        this.bus.emit('sweepModeChanged', false)
+        this.sound?.play('click')
+      }),
       this.bus.on('intent:sweepMode', (on) => {
         this.scene.setInteractionMode(on ? 'sweep' : 'normal')
         this.bus.emit('sweepModeChanged', on)
+        if (on) this.bus.emit('placeModeChanged', null)
       }),
       this.bus.on('intent:restart', () => this.startMatch((this.state.tick + 1) * 7919, this.difficulty)),
       this.bus.on('intent:startMatch', ({ seed: s, difficulty: d }) => this.startMatch(s, d)),

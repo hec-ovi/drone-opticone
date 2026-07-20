@@ -28,11 +28,20 @@ class FakeScene implements ScenePort {
     this.selectionCb = cb
   }
   onCameraPose(_cb: (pose: { x: number; z: number; yaw: number; dist: number }) => void): void {}
+  onModeChange(cb: (mode: SceneInteractionMode) => void): void {
+    this.modeChangeCb = cb
+  }
+  modeChangeCb: (mode: SceneInteractionMode) => void = () => {}
   focusAt(x: number, z: number): void {
     this.focused = { x, z }
   }
-  userSelects(drones: DroneState[]): void {
-    this.selectionCb({ drones, structures: [], nodes: [] })
+  userSelects(drones: DroneState[], structures: Selection['structures'] = []): void {
+    this.selectionCb({ drones, structures, nodes: [] })
+  }
+  /** Simulate the scene cancelling a mode itself (Esc / right-click). */
+  userCancelsMode(): void {
+    this.mode = 'normal'
+    this.modeChangeCb('normal')
   }
   setInteractionMode(mode: SceneInteractionMode): void {
     this.mode = mode
@@ -92,6 +101,21 @@ describe('app shell integration (real sim, fake scene)', () => {
 
     shell.step()
     expect(shell.state.players.find((p) => p.id === HUMAN)!.satellite.energy).toBeLessThan(100)
+  })
+
+  it('a scene-side cancel (Esc / right-click) clears armed modes on the bus', () => {
+    const { bus, scene } = rig()
+    const sweeps: boolean[] = []
+    const places: (string | null)[] = []
+    bus.on('sweepModeChanged', (on) => sweeps.push(on))
+    bus.on('placeModeChanged', (k) => places.push(k))
+
+    bus.emit('intent:construct', { kind: 'relay' })
+    expect(scene.mode).toBe('place:relay')
+    scene.userCancelsMode()
+
+    expect(places).toEqual(['relay', null])
+    expect(sweeps).toEqual([false, false])
   })
 
   it('scene commands reach the sim: a move order changes the drone mode', () => {

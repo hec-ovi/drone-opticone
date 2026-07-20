@@ -27,6 +27,7 @@ class FakeScene implements ScenePort {
     this.selectionCb = cb
   }
   onCameraPose(_cb: (pose: { x: number; z: number; yaw: number; dist: number }) => void): void {}
+  onModeChange(_cb: (mode: SceneInteractionMode) => void): void {}
   focusAt(x: number, z: number): void {
     this.focused = { x, z }
   }
@@ -37,8 +38,8 @@ class FakeScene implements ScenePort {
   userIssues(cmd: IssuedCommand): void {
     this.commandCb(cmd)
   }
-  userSelects(drones: DroneState[]): void {
-    this.selectionCb({ drones, structures: [], nodes: [] })
+  userSelects(drones: DroneState[], structures: Selection['structures'] = []): void {
+    this.selectionCb({ drones, structures, nodes: [] })
   }
 }
 
@@ -79,6 +80,34 @@ describe('app shell: new intents', () => {
     bus.emit('intent:selfDestruct', null)
     shell.step()
     expect(shell.state.drones.find((d) => d.id === scout.id)).toBeUndefined()
+  })
+
+  it('construct intent arms placement; the placed command builds and disarms', () => {
+    const { bus, scene, shell } = rig()
+    const places: (string | null)[] = []
+    bus.on('placeModeChanged', (k) => places.push(k))
+
+    bus.emit('intent:construct', { kind: 'power-plant' })
+    expect(scene.mode).toBe('place:power-plant')
+
+    scene.userIssues({ type: 'construct', playerId: HUMAN, kind: 'power-plant', at: { x: 860, z: 860 } })
+    expect(scene.mode).toBe('normal')
+    expect(places).toEqual(['power-plant', null])
+
+    shell.step()
+    const site = shell.state.structures.find(
+      (st) => st.playerId === HUMAN && st.kind === 'power-plant' && st.readyAtTick !== undefined,
+    )
+    expect(site).toBeDefined()
+  })
+
+  it('build intents route to the selected factory', () => {
+    const { bus, scene, shell } = rig()
+    const factory = shell.state.structures.find((s) => s.playerId === HUMAN && s.kind === 'factory')!
+    scene.userSelects([], [factory])
+    bus.emit('intent:build', { specId: 'fpv-strike' })
+    shell.step()
+    expect(shell.state.builds[0]!.structureId).toBe(factory.id)
   })
 
   it('minimap focus intents reach the scene camera', () => {

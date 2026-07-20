@@ -5,6 +5,7 @@ import type {
   PolicySpec,
   ResourceNodeState,
   SimEvent,
+  StructureKind,
   StructureState,
 } from './types'
 
@@ -28,6 +29,7 @@ export interface ClientTopics extends Record<string, unknown> {
   cameraPose: CameraPose
   thumbnails: ThumbnailSet
   'intent:build': { specId: string }
+  'intent:construct': { kind: StructureKind }
   'intent:sweepMode': boolean
   'intent:restart': null
   'intent:focus': { x: number; z: number }
@@ -39,9 +41,10 @@ export interface ClientTopics extends Record<string, unknown> {
   'intent:openMenu': null
   'intent:mute': boolean
   sweepModeChanged: boolean
+  placeModeChanged: StructureKind | null
 }
 
-export type SceneInteractionMode = 'normal' | 'sweep'
+export type SceneInteractionMode = 'normal' | 'sweep' | `place:${StructureKind}`
 
 /**
  * Rendered model thumbnails (data URLs) keyed by spec id, structure kind and
@@ -68,6 +71,8 @@ export interface ScenePort {
   onCommand(cb: (cmd: IssuedCommand) => void): void
   onSelection(cb: (selection: Selection) => void): void
   onCameraPose(cb: (pose: CameraPose) => void): void
+  /** fires when the scene cancels a mode itself (Escape / right-click) */
+  onModeChange(cb: (mode: SceneInteractionMode) => void): void
   focusAt(x: number, z: number): void
   setInteractionMode(mode: SceneInteractionMode): void
   dispose(): void

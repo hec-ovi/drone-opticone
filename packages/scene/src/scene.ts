@@ -3,6 +3,7 @@ import {
   FOG_EXPLORED,
   FOG_GRID,
   FOG_VISIBLE,
+  canPlaceStructure,
   type CameraPose,
   type DroneState,
   type IssuedCommand,
@@ -10,8 +11,9 @@ import {
   type SceneInteractionMode,
   type ScenePort,
   type Selection,
+  type StructureKind,
 } from '@opticone/shared'
-import { classifyPick, ndcToGround } from './pick'
+import { classifyPick, hoverIntent, ndcToGround, type HoverState } from './pick'
 import { CameraRig } from './camera'
 import { makeTerrain, type Terrain } from './terrain'
 import { makeNodeObject, makeStructureObject } from './props'
@@ -88,6 +90,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   let commandCb: (cmd: IssuedCommand) => void = () => {}
   let selectionCb: (selection: Selection) => void = () => {}
   let cameraPoseCb: (pose: CameraPose) => void = () => {}
+  let modeChangeCb: (mode: SceneInteractionMode) => void = () => {}
 
   // Control groups: Shift+1..9 assigns the current selection, 1..9 recalls,
   // a quick double tap also centers the camera on the group.
@@ -108,6 +111,94 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   scene.add(fx.group)
   const dmg = makeDamageFx()
   scene.add(dmg.group)
+
+  // Hover feedback: one reusable target ring, recolored per verb. The scene
+  // stays rules-free; hoverIntent (pure) decides what a right-click would do.
+  const HOVER_COLOR: Record<string, number> = { attack: 0xff5b5b, mine: 0x63e6c4, invalid: 0x8a939b }
+  let hover: HoverState = { verb: 'none', targetId: null, targetKind: 'ground' }
+  const hoverMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+  })
+  const hoverBracketMat = hoverMat.clone()
+  hoverBracketMat.opacity = 0.45
+  const hoverRing = new THREE.Group()
+  const hoverInner = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 40), hoverMat)
+  hoverInner.rotation.x = -Math.PI / 2
+  hoverRing.add(hoverInner)
+  const hoverBrackets = new THREE.Mesh(new THREE.RingGeometry(1.14, 1.28, 4), hoverBracketMat)
+  hoverBrackets.rotation.x = -Math.PI / 2
+  hoverRing.add(hoverBrackets)
+  hoverRing.visible = false
+  scene.add(hoverRing)
+
+  const setHover = (next: HoverState): void => {
+    hover = next
+    const show = next.targetId !== null && next.verb !== 'move' && next.verb !== 'none'
+    hoverRing.visible = show
+    if (show) {
+      const color = HOVER_COLOR[next.verb] ?? 0xffffff
+      hoverMat.color.set(color)
+      hoverBracketMat.color.set(color)
+    }
+    canvas.style.cursor = next.verb === 'invalid' ? 'not-allowed' : ''
+  }
+
+  // Construction placement ghost: green when the site is buildable, red when
+  // not. Validity mirrors the sim rule via the shared canPlaceStructure.
+  const ghostMat = new THREE.MeshBasicMaterial({
+    color: 0x57e389,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+  const ghost = new THREE.Group()
+  const ghostPad = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 4, 24), ghostMat)
+  ghostPad.position.y = 2
+  ghost.add(ghostPad)
+  const ghostBeam = new THREE.Mesh(new THREE.CylinderGeometry(4, 8, 70, 10), ghostMat)
+  ghostBeam.position.y = 35
+  ghost.add(ghostBeam)
+  const ghostRim = new THREE.Mesh(new THREE.RingGeometry(66, 72, 32), ghostMat)
+  ghostRim.rotation.x = -Math.PI / 2
+  ghostRim.position.y = 1
+  ghost.add(ghostRim)
+  ghost.visible = false
+  scene.add(ghost)
+  let placeValid = false
+
+  const placeKind = (): StructureKind | null =>
+    typeof mode === 'string' && mode.startsWith('place:') ? (mode.slice(6) as StructureKind) : null
+
+  const applyMode = (m: SceneInteractionMode): void => {
+    mode = m
+    if (!placeKind()) {
+      ghost.visible = false
+      placeValid = false
+    }
+    if (m !== 'normal') setHover({ verb: 'none', targetId: null, targetKind: 'ground' })
+  }
+
+  const cancelMode = (): void => {
+    if (mode === 'normal') return
+    applyMode('normal')
+    modeChangeCb('normal')
+  }
+
+  const updateGhost = (point: { x: number; z: number } | null): void => {
+    if (!placeKind() || !point || !lastView) {
+      ghost.visible = false
+      return
+    }
+    ghost.visible = true
+    ghost.position.set(point.x, groundY(point.x, point.z), point.z)
+    placeValid = canPlaceStructure(lastView, lastView.playerId, point.x, point.z)
+    ghostMat.color.set(placeValid ? 0x57e389 : 0xff5b5b)
+  }
 
   /** Is a world point inside the currently visible fog area of the view? */
   function visibleAt(view: PlayerView, x: number, z: number): boolean {
@@ -275,7 +366,12 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
         obj.scale.setScalar(1.5)
         return obj
       },
-      (s, obj) => obj.position.set(s.pos.x, groundY(s.pos.x, s.pos.z), s.pos.z),
+      (s, obj) => {
+        obj.position.set(s.pos.x, groundY(s.pos.x, s.pos.z), s.pos.z)
+        // Construction sites rise out of the ground as the hull completes.
+        const constructing = s.readyAtTick !== undefined && view.tick < s.readyAtTick
+        obj.scale.y = constructing ? 1.5 * (0.3 + 0.7 * (s.hp / s.hpMax)) : 1.5
+      },
     )
 
     sync(
@@ -506,6 +602,21 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     pointer.y = ev.clientY - rect.top
     // Edge pan only while the cursor actually hovers the field, not the HUD.
     pointer.inside = ev.target === canvas
+    // Free hover (no buttons): target feedback ring or placement ghost.
+    if (ev.buttons === 0) {
+      const clear: HoverState = { verb: 'none', targetId: null, targetKind: 'ground' }
+      if (!pointer.inside) {
+        setHover(clear)
+        updateGhost(null)
+      } else if (placeKind()) {
+        updateGhost(pickPoint(ev.clientX, ev.clientY))
+      } else if (mode === 'normal' && lastView && selected.size > 0) {
+        const point = pickPoint(ev.clientX, ev.clientY)
+        setHover(point ? hoverIntent(lastView, selected, point, PICK_TOLERANCE_M) : clear)
+      } else {
+        setHover(clear)
+      }
+    }
     if (!pressStartedOnCanvas) return
     movedPx = Math.max(movedPx, Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y))
     if (dragPanning && (ev.buttons & 3) === 3) {
@@ -582,6 +693,21 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     const point = pickPoint(ev.clientX, ev.clientY)
     if (!point) return
 
+    // Right-click backs out of sweep/placement modes instead of ordering.
+    if (mode !== 'normal' && ev.button === 2) {
+      cancelMode()
+      return
+    }
+
+    const constructKind = placeKind()
+    if (constructKind && ev.button === 0) {
+      if (placeValid) {
+        fx.orderMarker(point, 'move')
+        commandCb({ type: 'construct', playerId: lastView.playerId, kind: constructKind, at: { x: point.x, z: point.z } })
+      }
+      return
+    }
+
     if (mode === 'sweep' && ev.button === 0) {
       fx.orderMarker(point, 'sweep')
       commandCb({ type: 'satelliteSweep', playerId: lastView.playerId, center: { x: point.x, z: point.z } })
@@ -638,6 +764,10 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
 
   const onKeyDown = (ev: KeyboardEvent) => {
     if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return
+    if (ev.code === 'Escape') {
+      cancelMode()
+      return
+    }
     const digit = /^Digit([1-9])$/.exec(ev.code)
     if (digit) {
       const n = Number(digit[1])
@@ -743,6 +873,23 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
       const spinner = obj.userData.spinner as THREE.Object3D | undefined
       if (spinner) spinner.rotation.z = elapsed * 1.4
     }
+    // Hover ring tracks its target between sim ticks.
+    if (hoverRing.visible && hover.targetId) {
+      const obj =
+        droneMeshes.get(hover.targetId) ?? structureMeshes.get(hover.targetId) ?? nodeMeshes.get(hover.targetId)
+      if (obj) {
+        const r = droneMeshes.has(hover.targetId)
+          ? Math.max(14, (obj.scale.x || 1) * 1.25)
+          : structureMeshes.has(hover.targetId)
+            ? 84
+            : 58
+        hoverRing.scale.setScalar(r * (1 + Math.sin(elapsed * 6) * 0.06))
+        hoverRing.position.set(obj.position.x, groundY(obj.position.x, obj.position.z) + 2.8, obj.position.z)
+        hoverBrackets.rotation.z = elapsed * 1.8
+      } else {
+        hoverRing.visible = false
+      }
+    }
   }
 
   renderer.setAnimationLoop(() => {
@@ -762,11 +909,12 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     onCommand: (cb) => (commandCb = cb),
     onSelection: (cb) => (selectionCb = cb),
     onCameraPose: (cb) => (cameraPoseCb = cb),
+    onModeChange: (cb) => (modeChangeCb = cb),
     focusAt: (x, z) => {
       rig.focus.x = Math.max(0, Math.min(mapSize, x))
       rig.focus.z = Math.max(0, Math.min(mapSize, z))
     },
-    setInteractionMode: (m) => (mode = m),
+    setInteractionMode: applyMode,
     dispose: () => {
       renderer.setAnimationLoop(null)
       canvas.removeEventListener('pointerdown', onPointerDown)

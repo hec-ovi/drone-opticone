@@ -22,6 +22,7 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
   const lithium = chip(ICONS.lithium, 'res-lithium')
   const oil = chip(ICONS.oil, 'res-oil')
   const plastic = chip(ICONS.plastic, 'res-plastic')
+  const power = chip(ICONS.power, 'res-power')
   const satWrap = el('span', 'res res-sat', res)
   const satBadge = el('span', 'res-badge', satWrap)
   satBadge.appendChild(iconEl(ICONS.satellite))
@@ -59,6 +60,7 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
   body.innerHTML = `
     <p><strong>Goal.</strong> Destroy the enemy CENTCOM base before yours falls.</p>
     <p><strong>Economy.</strong> Ore miners harvest lithium crystals and oil seeps, the refinery cracks oil into airframe plastic, the factory turns lithium + plastic + credits into drones.</p>
+    <p><strong>Construction.</strong> Select the CENTCOM to place new structures, C&amp;C style. Power plants feed the grid; over the cap the base browns out: frozen factory line, no oil cracking, no satellite charge.</p>
     <p><strong>Combat.</strong> FPV quads and loitering munitions detonate on contact. Bombers and jets drop guided bombs from range. Watch the wind: over a drone's spec limit it drifts uncontrolled.</p>
     <p><strong>Control.</strong> Outside your CENTCOM/relay control range drones only follow standing orders (policies). Assign them from the order grid.</p>
     <p><strong>Recon.</strong> Fog hides everything. Scouts, structures and satellite sweeps reveal the field.</p>`
@@ -73,6 +75,11 @@ export function resourceStrip(root: HTMLElement, bus: Bus<ClientTopics>): () => 
     lithium.textContent = `Lithium ${fmt(view.economy.lithiumKg)} kg`
     oil.textContent = `Oil ${fmt(view.economy.oilKg)} kg`
     plastic.textContent = `Plastic ${fmt(view.economy.plasticKg)} kg`
+    const brownout = view.power.used > view.power.cap
+    power.textContent = brownout
+      ? `LOW POWER ${view.power.used}/${view.power.cap}`
+      : `Power ${view.power.used}/${view.power.cap}`
+    power.parentElement?.classList.toggle('warn', brownout)
     sat.textContent = `Sat ${view.satellite.energy.toFixed(0)}`
     satFill.style.width = `${Math.round(view.satellite.energy)}%`
     windValue.textContent = `Wind ${view.wind.speedMps.toFixed(1)} m/s`
