@@ -42,6 +42,9 @@ export interface PowerStatus {
   cap: number
 }
 
+/** Missile rack size of the air-defense battery, shared with the UI. */
+export const AIR_DEFENSE_AMMO_MAX = 8
+
 /** A structure under construction (readyAtTick in the future) does nothing yet. */
 export function structureActive(tick: number, st: { readyAtTick?: number }): boolean {
   return st.readyAtTick === undefined || tick >= st.readyAtTick

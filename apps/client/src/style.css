@@ -360,22 +360,68 @@ button:disabled {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(var(--accent), var(--accent)) 0 0 / 14px 2px,
-    linear-gradient(var(--accent), var(--accent)) 0 0 / 2px 14px,
-    linear-gradient(var(--accent), var(--accent)) 100% 100% / 14px 2px,
-    linear-gradient(var(--accent), var(--accent)) 100% 100% / 2px 14px;
+    linear-gradient(var(--frame), var(--frame)) 0 0 / 14px 2px,
+    linear-gradient(var(--frame), var(--frame)) 0 0 / 2px 14px,
+    linear-gradient(var(--frame), var(--frame)) 100% 100% / 14px 2px,
+    linear-gradient(var(--frame), var(--frame)) 100% 100% / 2px 14px;
   background-repeat: no-repeat;
   opacity: 0.8;
 }
 
-.portrait.hostile .p-frame {
-  background:
-    linear-gradient(var(--danger), var(--danger)) 0 0 / 14px 2px,
-    linear-gradient(var(--danger), var(--danger)) 0 0 / 2px 14px,
-    linear-gradient(var(--danger), var(--danger)) 100% 100% / 14px 2px,
-    linear-gradient(var(--danger), var(--danger)) 100% 100% / 2px 14px;
-  background-repeat: no-repeat;
+/* Activity coloring: the portrait frame tells what the unit is doing. */
+.portrait { --frame: var(--accent); }
+.portrait.hostile { --frame: var(--danger); }
+.portrait.mode-idle { --frame: #7f95a9; }
+.portrait.mode-moving,
+.portrait.mode-patrol {
+  --frame: var(--accent);
+  border-color: rgba(62, 198, 255, 0.7);
 }
+.portrait.mode-mining {
+  --frame: var(--teal);
+  border-color: rgba(94, 231, 200, 0.75);
+  box-shadow: inset 0 0 18px rgba(94, 231, 200, 0.18);
+}
+.portrait.mode-returning {
+  --frame: var(--warn);
+  border-color: rgba(224, 196, 83, 0.7);
+}
+.portrait.mode-attacking,
+.portrait.mode-terminal {
+  --frame: var(--danger);
+  border-color: rgba(255, 91, 91, 0.75);
+  box-shadow: inset 0 0 18px rgba(255, 91, 91, 0.18);
+}
+
+.mode-tag.mode-idle { color: var(--text-dim); }
+.mode-tag.mode-moving,
+.mode-tag.mode-patrol { color: var(--accent); border-color: rgba(62, 198, 255, 0.55); }
+.mode-tag.mode-mining { color: var(--teal); border-color: rgba(94, 231, 200, 0.55); }
+.mode-tag.mode-returning { color: var(--warn); border-color: rgba(224, 196, 83, 0.55); }
+.mode-tag.mode-attacking,
+.mode-tag.mode-terminal { color: var(--danger); border-color: rgba(255, 91, 91, 0.6); }
+
+/* Target line: what the selected unit is working on. */
+.plate-target {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.plate-target img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: #0c1319;
+}
+
+.plate-target .icon { color: var(--accent); }
+.plate-target.hostile-target { color: #ff9f96; }
+.plate-target.hostile-target .icon { color: var(--danger); }
 
 @keyframes p-spin { to { transform: rotate(360deg); } }
 
@@ -567,12 +613,20 @@ button:disabled {
   width: 196px;
 }
 
-.order-tooltip {
-  min-height: 26px;
-  font-size: 11.5px;
-  line-height: 1.3;
+/* Shared cursor-following tooltip; never affects layout. */
+.cursor-tip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  display: none;
+  background: rgba(8, 14, 20, 0.96);
+  border: 1px solid var(--line-strong);
   color: var(--text);
-  margin-bottom: 5px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  padding: 5px 9px;
+  max-width: 280px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
 
 .order-grid {
@@ -636,7 +690,7 @@ button:disabled {
 /* ------------------------------------------------------------ build menu */
 
 .build-menu {
-  flex: 1.9;
+  flex: 1.9 1 0;
   min-width: 330px;
 }
 
@@ -729,6 +783,9 @@ button:disabled {
 .build-card {
   margin-top: 7px;
   min-height: 62px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 5px 7px;
   border: 1px solid var(--line);
   background: rgba(14, 22, 32, 0.7);
@@ -760,6 +817,9 @@ button:disabled {
   min-height: 16px;
   font-family: var(--font-mono);
   font-size: 11px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .bc-cost {

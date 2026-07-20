@@ -80,6 +80,10 @@ export interface StructureState {
   readyAtTick?: number
   /** air defense: next tick this battery may fire again */
   cooldownUntilTick?: number
+  /** air defense: interceptor missiles in the rack */
+  ammo?: number
+  /** air defense: next tick the auto-reloader may load another missile */
+  reloadAtTick?: number
 }
 
 export interface ResourceNodeState {
@@ -95,6 +99,12 @@ export interface ProjectileState {
   pos: Vec3
   vel: Vec3
   payloadKg: number
+  /** interceptor missile: steers toward this entity or projectile id */
+  homingTargetId?: string
+  /** interceptor missile: closing speed */
+  speedMps?: number
+  /** interceptor missile: fizzles out at this tick if it never connects */
+  dieAtTick?: number
 }
 
 export interface PlayerEconomy {

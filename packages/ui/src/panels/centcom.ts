@@ -76,7 +76,6 @@ export function constructionMenu(root: HTMLElement, bus: Bus<ClientTopics>): () 
     const roleTag = POWER_CAP[kind] ? 'PWR' : kind === 'air-defense' ? 'DEF' : 'BLD'
     const tag = el('span', 'tile-tag role-support', btn)
     tag.textContent = roleTag
-    btn.title = STRUCTURE_NAME[kind]
     const show = () => {
       hoveredKind = kind
       if (!placing && lastView) card.show(cardFor(kind, lastView))

@@ -67,6 +67,42 @@ export function classifyPick(view: PlayerView, point: Vec3, tolerance: number): 
 
 export type HoverVerb = 'attack' | 'mine' | 'move' | 'invalid' | 'none'
 
+export interface TargetMarker {
+  key: string
+  x: number
+  z: number
+  r: number
+  verb: 'attack' | 'mine' | 'move'
+}
+
+/**
+ * Standing markers on whatever the selected units are working on: the node
+ * being mined, the entity under attack, the ground point being flown to.
+ * Deduped so ten drones on one node draw one ring.
+ */
+export function targetMarkers(view: PlayerView, selectedIds: ReadonlySet<string>): TargetMarker[] {
+  const out = new Map<string, TargetMarker>()
+  for (const d of view.ownDrones) {
+    if (!selectedIds.has(d.id)) continue
+    if (d.mode === 'mining' && d.nodeId) {
+      const n = view.nodes.find((x) => x.id === d.nodeId)
+      if (n) out.set(`n:${n.id}`, { key: `n:${n.id}`, x: n.pos.x, z: n.pos.z, r: 58, verb: 'mine' })
+    } else if (d.mode === 'attacking' && d.targetId) {
+      const t = [...view.enemyDrones, ...view.ownDrones].find((x) => x.id === d.targetId)
+      if (t) {
+        out.set(`e:${t.id}`, { key: `e:${t.id}`, x: t.pos.x, z: t.pos.z, r: 20, verb: 'attack' })
+      } else {
+        const st = view.structures.find((x) => x.id === d.targetId)
+        if (st) out.set(`e:${st.id}`, { key: `e:${st.id}`, x: st.pos.x, z: st.pos.z, r: 84, verb: 'attack' })
+      }
+    } else if (d.mode === 'moving' && d.dest) {
+      const key = `g:${Math.round(d.dest.x / 60)},${Math.round(d.dest.z / 60)}`
+      out.set(key, { key, x: d.dest.x, z: d.dest.z, r: 16, verb: 'move' })
+    }
+  }
+  return [...out.values()]
+}
+
 export interface HoverState {
   verb: HoverVerb
   targetId: string | null

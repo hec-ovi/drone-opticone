@@ -1,19 +1,34 @@
-import type { DroneClass, DroneSpec, StructureKind } from '@opticone/shared'
+import { AIR_DEFENSE_AMMO_MAX, type DroneClass, type DroneSpec, type StructureKind } from '@opticone/shared'
+
+export { AIR_DEFENSE_AMMO_MAX }
 
 /** All gameplay tuning in one place. Physics inputs come from DroneSpec, never from here. */
 export const TUNING = {
   mapSizeM: 4000,
   structureHp: {
-    centcomm: 6000,
-    refinery: 1500,
-    factory: 2000,
-    relay: 800,
-    'satellite-uplink': 1000,
-    'power-plant': 1200,
-    'air-defense': 900,
+    centcomm: 12000,
+    refinery: 3000,
+    factory: 4000,
+    relay: 1600,
+    'satellite-uplink': 2000,
+    'power-plant': 2400,
+    'air-defense': 1800,
   } satisfies Record<StructureKind, number>,
-  /** SAM battery: radar sight while powered, hitscan intercepts on a cooldown */
-  airDefense: { rangeM: 400, sightM: 800, cooldownS: 2.5, damage: 250 },
+  /**
+   * SAM battery: radar sight while powered; fires homing interceptor
+   * missiles from a finite rack, auto-reloaded from the bank.
+   */
+  airDefense: {
+    rangeM: 400,
+    sightM: 800,
+    cooldownS: 2.5,
+    damage: 250,
+    missileSpeedMps: 220,
+    fuseM: 10,
+    missileLifeS: 6,
+    reloadS: 5,
+    reloadCost: { plasticKg: 4, credits: 40 },
+  },
   structureRadiusM: 20,
   droneRadiusM: 2,
   droneHpBase: 20,

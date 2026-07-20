@@ -91,7 +91,6 @@ export function buildMenu(root: HTMLElement, bus: Bus<ClientTopics>): () => void
         count.style.display = 'none'
         const progress = el('span', 'tile-progress', btn)
         progress.style.width = '0%'
-        btn.title = `${spec.name} - ${role.text}`
         const show = () => {
           hoveredSpecId = spec.id
           if (lastView) card.show(cardFor(spec, lastView))

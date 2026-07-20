@@ -3,11 +3,12 @@ import { iconEl } from '../icons'
 import { ORDER_ICONS } from '../order-icons'
 import { button, el } from '../dom'
 import { isWarhead } from '../display'
+import { attachTooltip } from '../tooltip'
 
 /**
  * Order grid: a fixed 3x3 command card. Icon-only slots light up for the
- * unit types that support them (empty slots stay recessed), a tooltip strip
- * above the grid names the hovered order.
+ * unit types that support them (empty slots stay recessed); a cursor
+ * tooltip names the hovered order, so nothing in the panel ever reflows.
  */
 interface OrderDef {
   slot: number
@@ -94,7 +95,6 @@ const ORDERS: OrderDef[] = [
 
 export function commandCard(root: HTMLElement, bus: Bus<ClientTopics>): () => void {
   const panel = el('section', 'panel command-card', root)
-  const tooltip = el('p', 'order-tooltip', panel)
   const grid = el('div', 'order-grid', panel)
 
   let catalog: PlayerView['catalog'] = {}
@@ -110,13 +110,9 @@ export function commandCard(root: HTMLElement, bus: Bus<ClientTopics>): () => vo
     }
     const b = button(`order-slot${def.danger ? ' danger' : ''}`, grid, def.label)
     b.appendChild(iconEl(def.icon, 'icon order-icon'))
-    b.title = def.label
     b.disabled = true
     b.addEventListener('click', () => def.fire(bus))
-    const show = () => (tooltip.textContent = `${def.label.toUpperCase()} · ${def.desc}`)
-    b.addEventListener('mouseenter', show)
-    b.addEventListener('focus', show)
-    b.addEventListener('mouseleave', () => (tooltip.textContent = ''))
+    attachTooltip(b, () => `${def.label.toUpperCase()} · ${def.desc}`)
     slots.push(b)
   }
 

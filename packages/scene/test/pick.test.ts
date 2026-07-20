@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera } from 'three/webgpu'
-import { classifyPick, hoverIntent, ndcToGround, nearestPickable } from '@opticone/scene'
+import { classifyPick, hoverIntent, ndcToGround, nearestPickable, targetMarkers } from '@opticone/scene'
 import { snapshot, createMatch, tick } from '@opticone/sim-core'
 import { getCatalog } from '@opticone/registry'
 import type { PlayerView } from '@opticone/shared'
@@ -114,5 +114,39 @@ describe('C-04 hover intent (target feedback)', () => {
     expect(hoverIntent(view, new Set(), { x: 2010, y: 0, z: 2000 }, 60).verb).toBe('none')
     // Enemy selected for intel only: nothing orderable, no false feedback.
     expect(hoverIntent(view, new Set(['bandit']), { x: 3010, y: 0, z: 3000 }, 60).verb).toBe('none')
+  })
+})
+
+describe('C-04 target markers (what the selection works on)', () => {
+  const view = {
+    playerId: 'me',
+    catalog: {},
+    ownDrones: [
+      { id: 'm1', playerId: 'me', mode: 'mining', nodeId: 'n1', pos: { x: 0, y: 30, z: 0 } },
+      { id: 'm2', playerId: 'me', mode: 'mining', nodeId: 'n1', pos: { x: 10, y: 30, z: 0 } },
+      { id: 'a1', playerId: 'me', mode: 'attacking', targetId: 'bandit', pos: { x: 0, y: 60, z: 0 } },
+      { id: 'v1', playerId: 'me', mode: 'moving', dest: { x: 780, y: 0, z: 780 }, pos: { x: 0, y: 60, z: 0 } },
+      { id: 'v2', playerId: 'me', mode: 'moving', dest: { x: 790, y: 0, z: 786 }, pos: { x: 0, y: 60, z: 0 } },
+      { id: 'idle', playerId: 'me', mode: 'idle', pos: { x: 0, y: 60, z: 0 } },
+    ],
+    enemyDrones: [{ id: 'bandit', playerId: 'them', pos: { x: 500, y: 60, z: 500 } }],
+    structures: [],
+    nodes: [{ id: 'n1', kind: 'lithium', pos: { x: 300, y: 0, z: 300 } }],
+  } as unknown as PlayerView
+
+  it('marks the mined node once, the attack target red-style, and one move point', () => {
+    const all = new Set(['m1', 'm2', 'a1', 'v1', 'v2', 'idle'])
+    const markers = targetMarkers(view, all)
+    const verbs = markers.map((m) => m.verb).sort()
+    expect(verbs).toEqual(['attack', 'mine', 'move'])
+    const mine = markers.find((m) => m.verb === 'mine')!
+    expect(mine.x).toBe(300)
+    const attack = markers.find((m) => m.verb === 'attack')!
+    expect(attack.x).toBe(500)
+  })
+
+  it('only selected drones produce markers', () => {
+    expect(targetMarkers(view, new Set(['idle']))).toEqual([])
+    expect(targetMarkers(view, new Set(['m1'])).length).toBe(1)
   })
 })

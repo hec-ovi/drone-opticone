@@ -345,6 +345,88 @@ describe('C-05 construction panel and power', () => {
   })
 })
 
+describe('C-05 live plate: activity color, status and target', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('a mining miner gets a teal frame, a MINING tag and its target node named', () => {
+    const view = humanView((v) => {
+      const miner = v.ownDrones.find((d) => v.catalog[d.specId]?.class === 'mining')!
+      miner.mode = 'mining'
+      miner.nodeId = v.nodes.find((n) => n.kind === 'lithium')!.id
+    })
+    bus.emit('view', view)
+    const miner = view.ownDrones.find((d) => view.catalog[d.specId]?.class === 'mining')!
+    bus.emit('selection', { drones: [miner], structures: [], nodes: [] })
+
+    expect(document.querySelector('.portrait')!.classList.contains('mode-mining')).toBe(true)
+    expect(document.querySelector('.mode-tag')!.textContent).toBe('MINING')
+    expect(document.querySelector('.mode-tag')!.classList.contains('mode-mining')).toBe(true)
+    expect(document.querySelector('.plate-target')!.textContent).toContain('Lithium crystals')
+  })
+
+  it('the plate refreshes live when the unit changes activity, without re-selecting', () => {
+    const v0 = humanView()
+    bus.emit('view', v0)
+    const scout = v0.ownDrones.find((d) => d.specId === 'mavic3')!
+    bus.emit('selection', { drones: [scout], structures: [], nodes: [] })
+    expect(document.querySelector('.mode-tag')!.textContent).toBe('IDLE')
+
+    bus.emit('view', humanView((v) => (v.ownDrones.find((d) => d.id === scout.id)!.mode = 'returning')))
+    expect(document.querySelector('.mode-tag')!.textContent).toBe('RETURNING')
+    expect(document.querySelector('.portrait')!.classList.contains('mode-returning')).toBe(true)
+    expect(document.querySelector('.plate-target')!.textContent).toContain('Returning to base')
+  })
+
+  it('an air-defense battery reports its missile rack', () => {
+    const view = humanView((v) => {
+      v.structures.push({
+        id: 'ad1',
+        kind: 'air-defense',
+        playerId: 'human',
+        pos: { x: 900, y: 0, z: 900 },
+        hp: 1800,
+        hpMax: 1800,
+        ammo: 5,
+      })
+    })
+    bus.emit('view', view)
+    bus.emit('selection', { drones: [], structures: [view.structures.at(-1)!], nodes: [] })
+    expect(document.querySelector('.plate-info')!.textContent).toContain('missiles 5/8')
+  })
+})
+
+describe('C-05 cursor tooltip', () => {
+  let bus: Bus<ClientTopics>
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    bus = new Bus<ClientTopics>()
+    mountUI(document.body, bus)
+  })
+
+  it('order slots grow a cursor-following tooltip and the panel has no text strip', async () => {
+    const user = userEvent.setup()
+    bus.emit('view', humanView())
+    expect(document.querySelector('.order-tooltip')).toBeNull()
+
+    await user.hover(screen.getByRole('button', { name: 'Stop' }))
+    const tip = document.querySelector('.cursor-tip') as HTMLElement
+    expect(tip).not.toBeNull()
+    expect(tip.style.display).toBe('block')
+    expect(tip.textContent).toContain('STOP')
+    expect(tip.textContent).toContain('Hold position')
+
+    await user.unhover(screen.getByRole('button', { name: 'Stop' }))
+    expect(tip.style.display).toBe('none')
+  })
+})
+
 describe('C-05 structure and node selection', () => {
   let bus: Bus<ClientTopics>
 
@@ -365,7 +447,7 @@ describe('C-05 structure and node selection', () => {
     expect(portrait.dataset.structure).toBe('centcomm')
     expect(portrait.querySelector('.p-rotor')).not.toBeNull() // radar sweep
     expect(document.querySelector('.plate-info')!.textContent).toContain('CENTCOM base')
-    expect(document.querySelector('.stat-value')!.textContent).toContain('3600/6000')
+    expect(document.querySelector('.stat-value')!.textContent).toContain('7200/12000')
   })
 
   it('selecting a resource node shows its reserve', () => {
@@ -411,16 +493,20 @@ describe('C-05 drone roles', () => {
     }
   })
 
-  it('build tiles show the role tag; description lives in the tooltip', () => {
+  it('build tiles show the role tag; the description lives in the hover card', async () => {
     document.body.innerHTML = ''
     const bus = new Bus<ClientTopics>()
     mountUI(document.body, bus)
+    const user = userEvent.setup()
     const v0 = humanView()
     bus.emit('view', v0)
     selectFactory(bus, v0)
     const fpv = screen.getByRole('button', { name: /Build FPV strike quad/ })
     expect(fpv.textContent).toContain('STRIKE')
-    expect(fpv.title).toContain('Cheap kamikaze')
+    await user.hover(fpv)
+    expect(document.querySelector('.build-menu:not(.construct-menu) .bc-desc')!.textContent).toContain(
+      'Cheap kamikaze',
+    )
     const miner = screen.getByRole('button', { name: /Build Ore miner/ })
     expect(miner.textContent).toContain('MINER')
   })

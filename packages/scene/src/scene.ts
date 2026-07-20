@@ -13,7 +13,7 @@ import {
   type Selection,
   type StructureKind,
 } from '@opticone/shared'
-import { classifyPick, hoverIntent, ndcToGround, type HoverState } from './pick'
+import { classifyPick, hoverIntent, ndcToGround, targetMarkers, type HoverState } from './pick'
 import { CameraRig } from './camera'
 import { makeTerrain, type Terrain } from './terrain'
 import { makeNodeObject, makeStructureObject } from './props'
@@ -81,6 +81,7 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
   const nodeMeshes = new Map<string, THREE.Object3D>()
   const projectileMeshes = new Map<string, THREE.Object3D>()
   const selectionRings = new Map<string, THREE.Object3D>()
+  const targetRings = new Map<string, THREE.Object3D>()
   const selected = new Set<string>()
   let selectedStructureId: string | null = null
   let selectedNodeId: string | null = null
@@ -388,16 +389,25 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     sync(
       projectileMeshes,
       view.projectiles,
-      () => {
+      (p) => {
+        // Interceptor missiles read cyan-white with a hot trail; ballistic
+        // munitions stay amber.
+        const interceptor = p.homingTargetId !== undefined
         const g = new THREE.Group()
         const core = new THREE.Mesh(
-          new THREE.CapsuleGeometry(1.6, 7, 3, 8),
-          new THREE.MeshBasicMaterial({ color: 0xffd27a }),
+          new THREE.CapsuleGeometry(interceptor ? 1.1 : 1.6, interceptor ? 9 : 7, 3, 8),
+          new THREE.MeshBasicMaterial({ color: interceptor ? 0xcdf6ff : 0xffd27a }),
         )
         g.add(core)
-        const glow = new THREE.Sprite(glowSpriteMaterial(0xffb84d, 0.55))
-        glow.scale.setScalar(12)
+        const glow = new THREE.Sprite(glowSpriteMaterial(interceptor ? 0x6fe0ff : 0xffb84d, 0.55))
+        glow.scale.setScalar(interceptor ? 10 : 12)
         g.add(glow)
+        if (interceptor) {
+          const trail = new THREE.Sprite(glowSpriteMaterial(0x9fd6e8, 0.3))
+          trail.scale.set(4, 22, 1)
+          trail.position.y = -12
+          g.add(trail)
+        }
         return g
       },
       (p, obj) => {
@@ -453,6 +463,37 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
         .filter((n) => n.id === selectedNodeId)
         .map((n) => ({ id: n.id, pos: n.pos, r: 55, color: friendlyColor })),
     ]
+    // Standing rings on whatever the selection is working on: red on attack
+    // targets, teal on mined nodes, a small accent marker on move points.
+    const TARGET_COLOR = { attack: 0xff5b5b, mine: 0x63e6c4, move: 0x3ec6ff } as const
+    sync(
+      targetRings,
+      targetMarkers(view, selected).map((m) => ({ id: m.key, ...m })),
+      (m) => {
+        const g = new THREE.Group()
+        const mat = new THREE.MeshBasicMaterial({
+          color: TARGET_COLOR[m.verb],
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.75,
+          depthWrite: false,
+        })
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 0.98, 36), mat)
+        ring.rotation.x = -Math.PI / 2
+        g.add(ring)
+        const brackets = new THREE.Mesh(new THREE.RingGeometry(1.12, 1.3, 4), mat)
+        brackets.rotation.x = -Math.PI / 2
+        g.userData.spinner = brackets
+        g.add(brackets)
+        g.scale.setScalar(m.r)
+        return g
+      },
+      (m, obj) => {
+        obj.scale.setScalar(m.r)
+        obj.position.set(m.x, groundY(m.x, m.z) + 2.2, m.z)
+      },
+    )
+
     sync(
       selectionRings,
       ringItems,
@@ -881,6 +922,10 @@ export async function mountScene(canvas: HTMLCanvasElement): Promise<ScenePort> 
     for (const obj of selectionRings.values()) {
       const spinner = obj.userData.spinner as THREE.Object3D | undefined
       if (spinner) spinner.rotation.z = elapsed * 1.4
+    }
+    for (const obj of targetRings.values()) {
+      const spinner = obj.userData.spinner as THREE.Object3D | undefined
+      if (spinner) spinner.rotation.z = -elapsed * 2.2
     }
     // Hover ring tracks its target between sim ticks.
     if (hoverRing.visible && hover.targetId) {

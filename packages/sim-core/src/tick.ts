@@ -22,7 +22,7 @@ import {
 } from '@opticone/shared'
 import { dist2D, dist3D, stepToward, stepToward2D } from './geometry'
 import { makeDrone } from './match'
-import { TUNING, buildCost, buildTimeS, cruisePowerW } from './tuning'
+import { AIR_DEFENSE_AMMO_MAX, TUNING, buildCost, buildTimeS, cruisePowerW } from './tuning'
 
 export interface TickResult {
   state: MatchState
@@ -130,6 +130,8 @@ function applyCommands(s: MatchState, commands: IssuedCommand[], events: SimEven
         hp: Math.round(hpMax * 0.15),
         hpMax,
         readyAtTick: s.tick + Math.round(build.timeS / DT),
+        // Batteries ship with a full missile rack.
+        ...(cmd.kind === 'air-defense' ? { ammo: AIR_DEFENSE_AMMO_MAX } : {}),
       })
       continue
     }
@@ -430,58 +432,127 @@ function updateDrone(s: MatchState, d: DroneState, events: SimEvent[]): void {
 }
 
 /**
- * Air defense batteries: while powered, each one takes a hitscan shot every
- * cooldown at the closest threat in range, incoming munitions before
- * airframes. Missile defense first, area denial second.
+ * Air defense batteries: while powered, each one launches a homing
+ * interceptor missile every cooldown at the closest threat in range,
+ * incoming munitions before airframes. The rack is finite and auto-reloads
+ * one missile per cycle, paid in plastic and credits.
  */
 function updateAirDefense(s: MatchState, lowPower: Map<string, boolean>, events: SimEvent[]): void {
   const AD = TUNING.airDefense
-  const intercepted = new Set<string>()
   for (const st of s.structures) {
     if (st.kind !== 'air-defense' || st.hp <= 0 || !structureActive(s.tick, st)) continue
     if (lowPower.get(st.playerId)) continue
-    if ((st.cooldownUntilTick ?? 0) > s.tick) continue
 
-    let bestProjectile: MatchState['projectiles'][number] | undefined
+    // Auto-reload from the bank, one missile per cycle.
+    const player = s.players.find((p) => p.id === st.playerId)
+    if (player && (st.ammo ?? 0) < AIR_DEFENSE_AMMO_MAX && s.tick >= (st.reloadAtTick ?? 0)) {
+      const cost = AD.reloadCost
+      if (player.economy.plasticKg >= cost.plasticKg && player.economy.credits >= cost.credits) {
+        player.economy.plasticKg -= cost.plasticKg
+        player.economy.credits -= cost.credits
+        st.ammo = (st.ammo ?? 0) + 1
+        st.reloadAtTick = s.tick + Math.round(AD.reloadS / DT)
+        events.push({
+          type: 'resourceDelta',
+          playerId: st.playerId,
+          delta: { plasticKg: -cost.plasticKg, credits: -cost.credits },
+        })
+      }
+    }
+
+    if ((st.cooldownUntilTick ?? 0) > s.tick || (st.ammo ?? 0) <= 0) continue
+
+    // Nearest threat in range: incoming munitions before airframes.
+    let targetId: string | null = null
+    let targetPos: Vec3 | null = null
     let bestD = AD.rangeM
     for (const p of s.projectiles) {
-      if (p.playerId === st.playerId || intercepted.has(p.id)) continue
+      if (p.playerId === st.playerId || p.homingTargetId !== undefined) continue
       const d = dist3D(p.pos, st.pos)
       if (d <= bestD) {
         bestD = d
-        bestProjectile = p
+        targetId = p.id
+        targetPos = p.pos
       }
     }
-    if (bestProjectile) {
-      intercepted.add(bestProjectile.id)
-      st.cooldownUntilTick = s.tick + Math.round(AD.cooldownS / DT)
-      continue
+    if (!targetId) {
+      for (const d of s.drones) {
+        if (d.playerId === st.playerId || d.hp <= 0) continue
+        const dd = dist3D(d.pos, st.pos)
+        if (dd <= bestD) {
+          bestD = dd
+          targetId = d.id
+          targetPos = d.pos
+        }
+      }
     }
+    if (!targetId || !targetPos) continue
 
-    let bestDrone: DroneState | undefined
-    bestD = AD.rangeM
-    for (const d of s.drones) {
-      if (d.playerId === st.playerId || d.hp <= 0) continue
-      const dd = dist3D(d.pos, st.pos)
-      if (dd <= bestD) {
-        bestD = dd
-        bestDrone = d
-      }
-    }
-    if (bestDrone) {
-      bestDrone.hp -= AD.damage
-      if (bestDrone.hp <= 0) {
-        events.push({ type: 'destroyed', entityId: bestDrone.id, playerId: bestDrone.playerId, cause: 'munition' })
-      }
-      st.cooldownUntilTick = s.tick + Math.round(AD.cooldownS / DT)
-    }
+    st.ammo = (st.ammo ?? 0) - 1
+    st.cooldownUntilTick = s.tick + Math.round(AD.cooldownS / DT)
+    // Firing restarts the reload cycle, so a burst genuinely drains the rack.
+    st.reloadAtTick = Math.max(st.reloadAtTick ?? 0, s.tick + Math.round(AD.reloadS / DT))
+    const launch = { x: st.pos.x, y: st.pos.y + 26, z: st.pos.z }
+    const len = Math.max(1, dist3D(launch, targetPos))
+    s.projectiles.push({
+      id: `p${s.nextEntityId++}`,
+      playerId: st.playerId,
+      pos: launch,
+      vel: {
+        x: ((targetPos.x - launch.x) / len) * AD.missileSpeedMps,
+        y: ((targetPos.y - launch.y) / len) * AD.missileSpeedMps,
+        z: ((targetPos.z - launch.z) / len) * AD.missileSpeedMps,
+      },
+      payloadKg: 0,
+      homingTargetId: targetId,
+      speedMps: AD.missileSpeedMps,
+      dieAtTick: s.tick + Math.round(AD.missileLifeS / DT),
+    })
   }
-  if (intercepted.size > 0) s.projectiles = s.projectiles.filter((p) => !intercepted.has(p.id))
 }
 
 function updateProjectiles(s: MatchState, events: SimEvent[]): void {
   const alive: MatchState['projectiles'] = []
+  const intercepted = new Set<string>()
   for (const p of s.projectiles) {
+    // Interceptor missiles: steer at the target, proximity-fuse on contact.
+    if (p.homingTargetId !== undefined) {
+      if (p.dieAtTick !== undefined && s.tick >= p.dieAtTick) continue
+      const targetDrone = s.drones.find((d) => d.id === p.homingTargetId && d.hp > 0)
+      const targetProjectile = targetDrone
+        ? undefined
+        : s.projectiles.find((x) => x.id === p.homingTargetId && !intercepted.has(x.id))
+      const tp = targetDrone?.pos ?? targetProjectile?.pos
+      if (!tp) continue // target already gone: the missile burns out
+      const speed = p.speedMps ?? TUNING.airDefense.missileSpeedMps
+      const len = Math.max(0.001, dist3D(p.pos, tp))
+      p.vel.x = ((tp.x - p.pos.x) / len) * speed
+      p.vel.y = ((tp.y - p.pos.y) / len) * speed
+      p.vel.z = ((tp.z - p.pos.z) / len) * speed
+      p.pos.x += p.vel.x * DT
+      p.pos.y += p.vel.y * DT
+      p.pos.z += p.vel.z * DT
+      if (dist3D(p.pos, tp) <= TUNING.airDefense.fuseM) {
+        if (targetDrone) {
+          targetDrone.hp -= TUNING.airDefense.damage
+          if (targetDrone.hp <= 0) {
+            events.push({
+              type: 'destroyed',
+              entityId: targetDrone.id,
+              playerId: targetDrone.playerId,
+              cause: 'munition',
+            })
+          }
+        } else if (targetProjectile) {
+          intercepted.add(targetProjectile.id)
+        }
+        continue // interceptor expended
+      }
+      if (p.pos.y < ground(s, p.pos.x, p.pos.z)) continue // clipped a hill
+      alive.push(p)
+      continue
+    }
+
     p.vel.y -= 9.81 * DT
     p.pos.x += p.vel.x * DT
     p.pos.y += p.vel.y * DT
@@ -499,8 +570,7 @@ function updateProjectiles(s: MatchState, events: SimEvent[]): void {
       if (dist3D(d.pos, at) <= TUNING.munitionSplashM) d.hp -= TUNING.munitionDamage
     }
   }
-  s.projectiles = alive
-  void events
+  s.projectiles = intercepted.size > 0 ? alive.filter((p) => !intercepted.has(p.id)) : alive
 }
 
 function updateCollisions(s: MatchState, events: SimEvent[]): void {
