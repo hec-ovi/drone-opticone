@@ -4,6 +4,8 @@
 
 ![Gameplay: base building, mining, missile defense and drone strikes](media/gameplay.gif)
 
+![Missile defense battery intercepting a drone wave](media/missile-defense.gif)
+
 1v1 real-time strategy game with zero humans on the battlefield. Each player is an AI overlord (a CENTCOM base) that mines resources, builds drones from real-world specs, and fights with them. Think Warcraft 2 / StarCraft economy loop plus Command & Conquer satellite recon, but every unit is a real drone modeled 1:1: real weight, battery capacity, wind limits, ballistics, collision behavior.
 
 Core ideas:
