@@ -29,12 +29,12 @@ Not built yet: 1v1 wiring on top of C-06, C-02 asset pipeline, C-08..C-12 backen
 
 ```
 npm install
-npm test          # 169 tests: determinism, physics, economy, construction, air defense, UI, e2e AI match
+npm test          # 171 tests: determinism, physics, economy, construction, air defense, UI, e2e AI match
 npm run dev       # then open the printed URL, pick a difficulty, Deploy
 npm run build     # static bundle, CDN-ready
 ```
 
-Controls: left-click selects units, buildings or resource nodes, drag for box select (shift adds), right-click move / attack / mine, right-drag pans (also WASD, arrows, the screen edge, or hold left+right and drag), middle-drag to rotate and tilt, wheel zoom. Shift+1..9 stores a control group, 1..9 recalls it, double tap centers the camera on it. Satellite sweep is an order on the selected uplink; construction tiles live on the selected CENTCOM (click a tile, then click the field; right-click or Esc cancels). URL params `?seed=123&difficulty=easy|normal|hard` prefill the menu.
+Controls: left-click selects units, buildings or resource nodes, drag for box select (shift adds), right-click move / attack / mine, right-drag pans (also WASD, arrows, the screen edge, or hold left+right and drag), middle-drag to rotate and tilt, wheel zoom. Shift+1..9 stores a control group, 1..9 recalls it, double tap centers the camera on it. On the minimap: left-click or drag moves the camera, right-click sends the selected drones there. Satellite sweep is an order on the selected uplink; construction tiles live on the selected CENTCOM (click a tile, then click the field; right-click or Esc cancels). URL params `?seed=123&difficulty=easy|normal|hard` prefill the menu.
 
 ## Stack
 

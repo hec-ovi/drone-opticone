@@ -33,6 +33,8 @@ export interface ClientTopics extends Record<string, unknown> {
   'intent:sweepMode': boolean
   'intent:restart': null
   'intent:focus': { x: number; z: number }
+  /** right-click on the minimap: send the current selection there */
+  'intent:moveTo': { x: number; z: number }
   'intent:policy': PolicySpec | null
   'intent:selfDestruct': null
   'intent:stop': null

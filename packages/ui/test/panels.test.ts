@@ -48,6 +48,20 @@ describe('C-05 minimap', () => {
     expect(focuses[0]!.x).toBeLessThanOrEqual(4000)
   })
 
+  it('right-clicking the minimap orders the selection there, without moving the camera', async () => {
+    const user = userEvent.setup()
+    bus.emit('view', humanView())
+    const moves: { x: number; z: number }[] = []
+    const focuses: { x: number; z: number }[] = []
+    bus.on('intent:moveTo', (m) => moves.push(m))
+    bus.on('intent:focus', (f) => focuses.push(f))
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('img', { name: 'minimap' }) })
+    expect(moves.length).toBe(1)
+    expect(moves[0]!.x).toBeGreaterThanOrEqual(0)
+    expect(moves[0]!.x).toBeLessThanOrEqual(4000)
+    expect(focuses.length).toBe(0)
+  })
+
   it('the minimap is a pure map: no title, no status text, just the canvas', () => {
     bus.emit('view', humanView())
     bus.emit('sweepModeChanged', true)

@@ -69,6 +69,7 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
   let lastView: PlayerView | null = null
   let pose: CameraPose | null = null
   let lastDraw = 0
+  let orderPing: { x: number; z: number; t: number } | null = null
 
   function draw(): void {
     const view = lastView
@@ -113,6 +114,17 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
       ctx.stroke()
     }
 
+    // Right-click order ping: a shrinking ring where the selection was sent.
+    if (orderPing && Date.now() - orderPing.t < 700) {
+      const age = (Date.now() - orderPing.t) / 700
+      const p = worldToMinimap(orderPing.x, orderPing.z, S, view.mapSizeM)
+      ctx.strokeStyle = 'rgba(94,231,200,0.9)'
+      ctx.lineWidth = 1.4
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 3 + (1 - age) * 6, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+
     // Camera viewport: a yaw-aligned box scaled with zoom.
     if (pose) {
       const p = worldToMinimap(pose.x, pose.z, S, view.mapSizeM)
@@ -134,22 +146,39 @@ export function minimapPanel(root: HTMLElement, bus: Bus<ClientTopics>): () => v
     draw()
   }
 
-  function emitFocus(ev: MouseEvent): void {
-    if (!lastView) return
+  function clickWorld(ev: MouseEvent): { x: number; z: number } | null {
+    if (!lastView) return null
     const rect = canvas.getBoundingClientRect()
     const scale = rect.width > 0 ? MINIMAP_SIZE / rect.width : 1
     const px = (ev.clientX - rect.left) * scale
     const py = (ev.clientY - rect.top) * scale
-    bus.emit('intent:focus', minimapToWorld(px, py, MINIMAP_SIZE, lastView.mapSizeM))
+    return minimapToWorld(px, py, MINIMAP_SIZE, lastView.mapSizeM)
+  }
+
+  function emitFocus(ev: MouseEvent): void {
+    const at = clickWorld(ev)
+    if (at) bus.emit('intent:focus', at)
   }
 
   let dragging = false
   canvas.addEventListener('pointerdown', (ev) => {
+    // Right-click: send the current selection there, RTS style.
+    if (ev.button === 2) {
+      const at = clickWorld(ev)
+      if (at) {
+        orderPing = { x: at.x, z: at.z, t: Date.now() }
+        bus.emit('intent:moveTo', at)
+        draw()
+      }
+      return
+    }
+    if (ev.button !== 0) return
     dragging = true
     emitFocus(ev)
   })
+  canvas.addEventListener('contextmenu', (ev) => ev.preventDefault())
   canvas.addEventListener('pointermove', (ev) => {
-    if (dragging && ev.buttons > 0) emitFocus(ev)
+    if (dragging && (ev.buttons & 1) === 1) emitFocus(ev)
   })
   window.addEventListener('pointerup', () => (dragging = false))
 

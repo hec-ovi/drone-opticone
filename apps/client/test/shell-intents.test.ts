@@ -116,6 +116,24 @@ describe('app shell: new intents', () => {
     expect(scene.focused).toEqual({ x: 1234, z: 987 })
   })
 
+  it('a minimap move intent sends the selected drones there', () => {
+    const { bus, scene, shell } = rig()
+    const scout = shell.state.drones.find((d) => d.playerId === HUMAN && d.specId === 'mavic3')!
+    scene.userSelects([scout])
+    bus.emit('intent:moveTo', { x: 2200, z: 2400 })
+    shell.step()
+    const after = shell.state.drones.find((d) => d.id === scout.id)!
+    expect(after.mode).toBe('moving')
+    // Fan-out keeps the destination within the formation disc of the click.
+    expect(Math.hypot(after.dest!.x - 2200, after.dest!.z - 2400)).toBeLessThan(80)
+
+    // With nothing selected the intent is a no-op.
+    scene.userSelects([])
+    bus.emit('intent:moveTo', { x: 100, z: 100 })
+    shell.step()
+    expect(shell.state.drones.find((d) => d.id === scout.id)!.dest!.x).not.toBe(100)
+  })
+
   it('startMatch resets state, applies the difficulty and starts the loop', () => {
     const { bus, shell } = rig()
     expect(shell.running).toBe(false)

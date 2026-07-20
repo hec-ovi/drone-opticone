@@ -91,6 +91,12 @@ export class GameShell {
       this.bus.on('intent:restart', () => this.startMatch((this.state.tick + 1) * 7919, this.difficulty)),
       this.bus.on('intent:startMatch', ({ seed: s, difficulty: d }) => this.startMatch(s, d)),
       this.bus.on('intent:focus', ({ x, z }) => this.scene.focusAt(x, z)),
+      this.bus.on('intent:moveTo', ({ x, z }) => {
+        const ids = this.ownSelectedIds()
+        if (ids.length === 0) return
+        this.queued.push({ type: 'move', playerId: HUMAN, droneIds: ids, to: { x, y: 0, z } })
+        this.sound?.play('click')
+      }),
       this.bus.on('intent:policy', (policy) => {
         const ids = this.ownSelectedIds()
         if (ids.length === 0) return
